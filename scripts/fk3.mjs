@@ -1,0 +1,13 @@
+import * as fontkit from 'fontkit';
+import fs from 'node:fs';
+const font = fontkit.create(fs.readFileSync('public/fonts/Tinos-Regular.ttf'));
+const sub = font.createSubset();
+const proto = Object.getPrototypeOf(sub);
+console.log('subset class:', proto.constructor.name);
+console.log('methods:', Object.getOwnPropertyNames(proto).join(', '));
+console.log('own:', Object.keys(sub).join(', '));
+const run = font.layout('Hi');
+console.log('glyph keys:', Object.keys(run.glyphs[0]).slice(0, 12).join(', '));
+for (const g of run.glyphs) sub.includeGlyph(g);
+const enc = sub.encode ? sub.encode() : null;
+console.log('encode() ->', enc && enc.constructor.name, enc && enc.length);

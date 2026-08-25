@@ -610,21 +610,28 @@ export function buildFlowItem(block: Block, ctx: BuildContext): FlowItem {
 
     case 'list': {
       const base = baseStyle(ctx.theme, style);
-      const markerBase = { ...base, bold: block.variant === 'number' ? base.bold : base.bold };
-      const gutter = Math.max(14, base.size * 1.5);
+      const markerFor = (i: number, level: number) =>
+        block.variant === 'bullet'
+          ? level % 2 === 0
+            ? '•'
+            : '◦'
+          : block.variant === 'none'
+            ? ''
+            : `${formatCounter(i + 1, block.variant === 'number' ? 'number' : block.variant)}.`;
+
+      // The gutter is sized from the widest marker so "10." never runs into its
+      // own text, however many items the list grows to.
+      const gutter = block.items.reduce(
+        (widest, _, i) =>
+          Math.max(widest, measureRuns([{ text: markerFor(i, block.levels?.[i] ?? 0) }], base)),
+        base.size * 0.9,
+      ) + base.size * 0.5;
       const pieces: Piece[] = [];
 
       block.items.forEach((item, i) => {
         const level = block.levels?.[i] ?? 0;
         const off = level * gutter;
-        const marker =
-          block.variant === 'bullet'
-            ? level % 2 === 0
-              ? '•'
-              : '◦'
-            : block.variant === 'none'
-              ? ''
-              : `${formatCounter(i + 1, block.variant === 'number' ? 'number' : block.variant)}.`;
+        const marker = markerFor(i, level);
 
         const lines = wrapRuns(item, base, {
           widthAt: () => width - off - gutter,
@@ -640,7 +647,7 @@ export function buildFlowItem(block: Block, ctx: BuildContext): FlowItem {
             undefined,
             {
               prefix: marker
-                ? { ...decoFor([{ text: marker }], markerBase, 0), dx: indentL + off }
+                ? { ...decoFor([{ text: marker }], base, 0), dx: indentL + off }
                 : undefined,
               orphans: 1,
               widows: 1,
@@ -952,11 +959,22 @@ function buildQuestion(
   }
 
   // Sub-parts (a), (b), (c) with their own marks column.
+  // Sized once from the widest label, e.g. "(viii)" needs more room than "(a)".
+  const partIndent = base.size * 0.9;
+  const partGutter =
+    (block.parts ?? []).reduce(
+      (widest, part) =>
+        Math.max(
+          widest,
+          measureRuns([{ text: ctx.numbers.partLabels[part.id] ?? '' }], base),
+        ),
+      base.size,
+    ) + base.size * 0.45;
+
   block.parts?.forEach((part) => {
     const partLabel = ctx.numbers.partLabels[part.id] ?? '';
-    const partGutter = Math.max(18, base.size * 2);
-    const partX = bodyX + partGutter * 0.4;
-    const partWidth = bodyWidth - partGutter;
+    const partX = bodyX + partIndent;
+    const partWidth = bodyWidth - partIndent - partGutter;
 
     const partMarksRuns: Run[] =
       ctx.numbering.showMarks && part.marks
@@ -975,7 +993,7 @@ function buildQuestion(
       textPiece(
         { kind: 'flow', id: block.id },
         partLines,
-        partX + partGutter * 0.6,
+        partX + partGutter,
         partWidth,
         undefined,
         {
