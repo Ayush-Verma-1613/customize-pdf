@@ -28,7 +28,6 @@ function notice(input: TemplateInput): PaperDoc {
     accent: '#b91c1c',
   };
   doc.page.margins = { top: 56, right: 56, bottom: 56, left: 56 };
-  doc.page.border = { color: '#111827', width: 1.2, inset: 30, style: 'solid', radius: 4 };
   doc.fields = { ...f };
   doc.master.footer = { ...doc.master.footer, enabled: false };
 

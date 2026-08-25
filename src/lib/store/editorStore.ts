@@ -64,7 +64,7 @@ interface EditOptions {
  * Store
  * ------------------------------------------------------------------ */
 
-export type SidePanel = 'elements' | 'templates' | 'content' | 'pages' | 'document';
+export type SidePanel = 'elements' | 'templates' | 'content' | 'pages' | 'document' | 'guide';
 export type EditorMode = 'design' | 'preview';
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 

@@ -97,7 +97,6 @@ function classicQuestionPaper(input: TemplateInput): PaperDoc {
     lineHeight: 1.38,
   };
   doc.page.margins = { top: 42, right: 44, bottom: 46, left: 44 };
-  doc.page.border = { color: '#374151', width: 0.9, inset: 24, style: 'solid', radius: 2 };
   doc.fields = { ...f };
 
   doc.master.footer = {

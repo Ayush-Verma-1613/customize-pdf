@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Copy, Lock, Scissors, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Lock, Pencil, Scissors, Trash2 } from 'lucide-react';
 import type { LaidOutPage } from '@/lib/engine/types';
 import type { Overlay } from '@/lib/model/types';
 import { useEditor } from '@/lib/store/editorStore';
+import { useCoarsePointer, useCompactLayout } from '@/lib/utils/useMedia';
 import { cx } from '@/lib/utils/cx';
 import { clamp, type Rect } from '@/lib/utils/geom';
 import { PageSvg } from './PageSvg';
@@ -53,6 +54,8 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
   const editingId = useEditor((s) => s.editingId);
   const store = useEditor;
 
+  const compact = useCompactLayout();
+  const coarse = useCoarsePointer();
   const surfaceRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const [guides, setGuides] = useState<SnapGuide[]>([]);
@@ -86,16 +89,22 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
   const beginDrag = (
     event: React.PointerEvent,
     box: HitBox,
-    mode: DragState['mode'],
+    dragMode: DragState['mode'],
     handle?: HandleId,
   ) => {
     if (!interactive || box.locked) return;
     event.stopPropagation();
-    event.preventDefault();
-    (event.target as Element).setPointerCapture?.(event.pointerId);
+    // Only the handles swallow the default action. Suppressing it on the body
+    // of an element would also swallow the double-click that opens the text
+    // editor, so a move/reorder drag stays passive until the pointer actually
+    // travels far enough to count as a drag.
+    if (dragMode === 'resize' || dragMode === 'rotate') {
+      event.preventDefault();
+      (event.target as Element).setPointerCapture?.(event.pointerId);
+    }
 
     dragRef.current = {
-      mode,
+      mode: dragMode,
       id: box.id,
       kind: box.kind,
       handle,
@@ -112,8 +121,11 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
     const point = toPagePoint(event);
     const dx = point.x - drag.startPointer.x;
     const dy = point.y - drag.startPointer.y;
-    if (!drag.moved && Math.hypot(dx, dy) < 2) return;
-    drag.moved = true;
+    if (!drag.moved && Math.hypot(dx, dy) < 3) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      surfaceRef.current?.setPointerCapture?.(event.pointerId);
+    }
 
     if (drag.kind === 'flow') {
       setDropIndex(nearestFlowSlot(point.y));
@@ -246,6 +258,9 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
                   width: px(box.width),
                   height: px(box.height),
                   transform: box.rotation ? `rotate(${box.rotation}deg)` : undefined,
+                  // A finger on an unselected element should scroll the page;
+                  // once it is selected, the same finger drags it instead.
+                  touchAction: isSelected && !box.locked ? 'none' : 'manipulation',
                 }}
                 onPointerEnter={() => setHovered(box.id)}
                 onPointerLeave={() => setHovered((h) => (h === box.id ? null : h))}
@@ -286,6 +301,7 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
               key={overlay.id}
               overlay={overlay}
               zoom={zoom}
+              large={coarse}
               onHandle={(e, handle) =>
                 beginDrag(
                   e,
@@ -307,7 +323,14 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
             />
           ))}
 
-          {selectedFlowBox ? <FlowBlockToolbar box={selectedFlowBox} zoom={zoom} /> : null}
+          {selectedFlowBox ? (
+            <FlowBlockToolbar
+              box={selectedFlowBox}
+              zoom={zoom}
+              pageWidth={page.width}
+              compact={compact}
+            />
+          ) : null}
 
           {guides.map((guide, i) => (
             <div
@@ -345,14 +368,18 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
 function OverlayHandles({
   overlay,
   zoom,
+  large,
   onHandle,
 }: {
   overlay: Overlay;
   zoom: number;
+  /** Fingers need a bigger target than a mouse pointer does. */
+  large: boolean;
   onHandle: (event: React.PointerEvent, handle: HandleId | 'rotate') => void;
 }) {
   if (overlay.locked) return null;
   const px = (v: number) => v * zoom;
+  const handleSize = large ? 'h-4 w-4' : 'h-2.5 w-2.5';
 
   return (
     <div
@@ -370,7 +397,10 @@ function OverlayHandles({
           key={handle.id}
           role="presentation"
           onPointerDown={(e) => onHandle(e, handle.id)}
-          className="pointer-events-auto absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[2px] border border-question-hue bg-white shadow-sm"
+          className={cx(
+            'pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 touch-none rounded-[2px] border border-question-hue bg-white shadow-sm',
+            handleSize,
+          )}
           style={{
             left: `${handle.cx * 100}%`,
             top: `${handle.cy * 100}%`,
@@ -382,8 +412,11 @@ function OverlayHandles({
         role="presentation"
         onPointerDown={(e) => onHandle(e, 'rotate')}
         title="Rotate"
-        className="pointer-events-auto absolute left-1/2 h-3 w-3 -translate-x-1/2 cursor-grab rounded-full border border-question-hue bg-white shadow-sm"
-        style={{ top: -22 }}
+        className={cx(
+          'pointer-events-auto absolute left-1/2 -translate-x-1/2 cursor-grab touch-none rounded-full border border-question-hue bg-white shadow-sm',
+          large ? 'h-5 w-5' : 'h-3 w-3',
+        )}
+        style={{ top: large ? -30 : -22 }}
       />
       <span
         className="absolute left-1/2 w-px bg-question-hue/50"
@@ -398,14 +431,34 @@ function OverlayHandles({
   );
 }
 
-/** Quick actions that follow the selected flow block on the page. */
-function FlowBlockToolbar({ box, zoom }: { box: HitBox; zoom: number }) {
+/**
+ * Quick actions for the selected flow block. It lives in the page gutter rather
+ * than floating above the block: a flow block spans the full text column, so
+ * anything hovering over it would hide the element the teacher just read.
+ */
+function FlowBlockToolbar({
+  box,
+  zoom,
+  pageWidth,
+  compact,
+}: {
+  box: HitBox;
+  zoom: number;
+  pageWidth: number;
+  /** On a phone there is no gutter, so the bar sits under the block instead. */
+  compact: boolean;
+}) {
   const store = useEditor;
   const flow = useEditor((s) => s.doc.flow);
   const index = flow.findIndex((b) => b.id === box.id);
   const px = (v: number) => v * zoom;
 
   const actions = [
+    {
+      icon: <Pencil size={13} />,
+      label: 'Edit text',
+      run: () => store.getState().beginEditing(box.id),
+    },
     {
       icon: <ArrowUp size={13} />,
       label: 'Move up',
@@ -438,8 +491,15 @@ function FlowBlockToolbar({ box, zoom }: { box: HitBox; zoom: number }) {
 
   return (
     <div
-      className="animate-rise absolute z-20 flex items-center gap-0.5 rounded-lg border border-line bg-white p-1 shadow-lg"
-      style={{ left: px(box.x), top: px(box.y) - 38 }}
+      className={cx(
+        'animate-rise absolute z-20 flex items-center gap-0.5 rounded-lg border border-line bg-white p-1 shadow-lg',
+        compact ? 'flex-row' : 'flex-col',
+      )}
+      style={
+        compact
+          ? { left: px(box.x), top: px(box.y + box.height) + 6 }
+          : { left: px(pageWidth) + 6, top: Math.max(0, px(box.y) - 4) }
+      }
       onPointerDown={(e) => e.stopPropagation()}
     >
       {actions.map((action) => (

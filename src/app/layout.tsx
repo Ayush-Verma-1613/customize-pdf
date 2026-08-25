@@ -10,7 +10,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // Never block pinch zoom: the canvas has its own gesture, but a reader who
+  // needs to magnify the interface itself must still be able to.
+  maximumScale: 5,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

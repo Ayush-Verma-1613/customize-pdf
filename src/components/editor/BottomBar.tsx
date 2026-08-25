@@ -7,7 +7,7 @@ import { IconButton, Segmented } from '@/components/ui/primitives';
 
 const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 
-export function BottomBar() {
+export function BottomBar({ compact = false }: { compact?: boolean }) {
   const zoom = useEditor((s) => s.zoom);
   const fitMode = useEditor((s) => s.fitMode);
   const activePage = useEditor((s) => s.activePage);
@@ -63,7 +63,8 @@ export function BottomBar() {
         onClick={() => store.getState().addPage(activePage)}
         className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-[12px] text-ink-soft transition-colors hover:bg-slate-100"
       >
-        <Plus size={13} /> Add page
+        <Plus size={13} />
+        <span className={compact ? 'sr-only' : undefined}>Add page</span>
       </button>
 
       <div className="ml-auto flex items-center gap-1.5">
@@ -79,18 +80,20 @@ export function BottomBar() {
         <IconButton label="Zoom out" onClick={() => step(-1)}>
           <Minus size={16} />
         </IconButton>
-        <input
-          type="range"
-          min={15}
-          max={300}
-          value={Math.round(zoom * 100)}
-          onChange={(e) => store.getState().setZoom(Number(e.target.value) / 100, 'manual')}
-          aria-label="Zoom"
-          className="h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-line
-                     [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3
-                     [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
-                     [&::-webkit-slider-thumb]:bg-ink"
-        />
+        {compact ? null : (
+          <input
+            type="range"
+            min={15}
+            max={300}
+            value={Math.round(zoom * 100)}
+            onChange={(e) => store.getState().setZoom(Number(e.target.value) / 100, 'manual')}
+            aria-label="Zoom"
+            className="h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-line
+                       [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3
+                       [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
+                       [&::-webkit-slider-thumb]:bg-ink"
+          />
+        )}
         <IconButton label="Zoom in" onClick={() => step(1)}>
           <Plus size={16} />
         </IconButton>

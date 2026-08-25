@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowRight,
+  ChevronDown,
   Copy,
   FileUp,
   Loader2,
@@ -82,7 +83,7 @@ export function HomeClient() {
   return (
     <div className="min-h-dvh">
       <header className="border-b border-line bg-panel">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6 sm:py-4">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink text-white">
             <Sparkles size={17} />
           </span>
@@ -97,7 +98,8 @@ export function HomeClient() {
               icon={<FileUp size={14} />}
               onClick={() => importRef.current?.click()}
             >
-              Import a file
+              <span className="hidden sm:inline">Import a file</span>
+              <span className="sm:hidden">Import</span>
             </Button>
             <input
               ref={importRef}
@@ -113,8 +115,10 @@ export function HomeClient() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+        <HowItWorks />
+
+        <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div>
             <h2 className="text-[13px] font-semibold tracking-[0.08em] text-muted uppercase">
               1 · Choose a document
@@ -126,7 +130,7 @@ export function HomeClient() {
                 return (
                   <div key={category}>
                     <h3 className="mb-2 text-[12px] font-medium text-faint">{category}</h3>
-                    <div className="grid gap-2.5 sm:grid-cols-2">
+                    <div className="grid grid-cols-2 gap-2.5">
                       {items.map((item) => (
                         <button
                           key={item.id}
@@ -146,10 +150,10 @@ export function HomeClient() {
                             />
                             <span className="text-[13px] font-medium text-ink">{item.name}</span>
                           </span>
-                          <span className="mt-1 block text-[11px] leading-relaxed text-faint">
+                          <span className="mt-1 line-clamp-3 block text-[11px] leading-relaxed text-faint sm:line-clamp-none">
                             {item.description}
                           </span>
-                          <span className="mt-2 block rounded-lg bg-slate-50 px-2 py-1.5">
+                          <span className="mt-2 hidden rounded-lg bg-slate-50 px-2 py-1.5 sm:block">
                             {item.preview.map((line, i) => (
                               <span
                                 key={i}
@@ -318,6 +322,82 @@ export function HomeClient() {
         </section>
       </main>
     </div>
+  );
+}
+
+/**
+ * A short explainer above the fold. New users arrive here first and the whole
+ * product rests on one idea - you supply the words, the layout is worked out -
+ * so it is worth thirty seconds of their attention before the form.
+ */
+function HowItWorks() {
+  const [open, setOpen] = useState(false);
+
+  const steps = [
+    { n: '1', title: 'Enter your content', body: 'Type it, or paste it straight out of Word.' },
+    { n: '2', title: 'Pick a document', body: 'A question paper, worksheet, notice, certificate…' },
+    { n: '3', title: 'It lays itself out', body: 'Numbering, spacing and page breaks are automatic.' },
+    { n: '4', title: 'Change anything', body: 'Click any part of the page and edit it.' },
+    { n: '5', title: 'Export a PDF', body: 'What you see is exactly what prints.' },
+  ];
+
+  return (
+    <section className="rounded-2xl border border-line bg-panel p-4 panel-shadow">
+      <div className="grid gap-3 sm:grid-cols-5">
+        {steps.map((step) => (
+          <div key={step.n} className="flex gap-2.5 sm:block">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-[11px] font-semibold text-white sm:mb-1.5">
+              {step.n}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[13px] font-medium text-ink">{step.title}</span>
+              <span className="mt-0.5 block text-[11.5px] leading-relaxed text-faint">
+                {step.body}
+              </span>
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="mt-3 flex items-center gap-1 text-[12px] font-medium text-muted transition-colors hover:text-ink"
+      >
+        What can I paste in?
+        <ChevronDown size={13} className={open ? 'rotate-180 transition-transform' : 'transition-transform'} />
+      </button>
+
+      {open ? (
+        <div className="animate-rise mt-2.5 grid gap-1.5 border-t border-line-soft pt-3 sm:grid-cols-2">
+          {[
+            ['Subject: Science', 'Fills in a heading field'],
+            ['Section A', 'Starts a new section'],
+            ['1. Your question [2]', 'A question worth 2 marks'],
+            ['(a) A sub-part [1]', 'Sub-part of the question above'],
+            ['a) An option', 'Multiple-choice option'],
+            ['- A bullet', 'Bulleted list'],
+            ['| Cell | Cell |', 'A table row'],
+            ['[[lines:4]]', 'Four ruled answer lines'],
+            ['[[pagebreak]]', 'Start a new page'],
+            ['**bold** *italic*', 'Emphasis inside a line'],
+          ].map(([pattern, meaning]) => (
+            <div key={pattern} className="flex items-baseline gap-2">
+              <code className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10.5px] text-ink-soft">
+                {pattern}
+              </code>
+              <span className="min-w-0 flex-1 text-[11px] text-faint">{meaning}</span>
+            </div>
+          ))}
+          <p className="text-[11px] text-faint sm:col-span-2">
+            None of this is required — you can also start with a blank page and
+            build it by hand. Everything the layout decides can be overridden
+            afterwards.
+          </p>
+        </div>
+      ) : null}
+    </section>
   );
 }
 

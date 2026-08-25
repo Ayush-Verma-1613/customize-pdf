@@ -3,33 +3,86 @@
 import { useEffect, useState } from 'react';
 import {
   FileText,
+  HelpCircle,
   Layers,
   LayoutTemplate,
   ListTree,
   Settings2,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useAutosave } from '@/lib/store/autosave';
 import { useEditor, type SidePanel } from '@/lib/store/editorStore';
+import { useCompactLayout } from '@/lib/utils/useMedia';
 import { cx } from '@/lib/utils/cx';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CanvasArea } from './canvas/CanvasArea';
 import { BottomBar } from './BottomBar';
 import { TopToolbar } from './TopToolbar';
 import { ContentPanel } from './panels/ContentPanel';
 import { DocumentPanel } from './panels/DocumentPanel';
 import { ElementsPanel } from './panels/ElementsPanel';
+import { GuidePanel } from './panels/GuidePanel';
 import { PagesPanel } from './panels/PagesPanel';
 import { RightPanel } from './panels/RightPanel';
 import { TemplatesPanel } from './panels/TemplatesPanel';
 
-const TABS: { id: SidePanel; label: string; icon: React.ReactNode }[] = [
+/** The panel tabs, plus the properties inspector which is its own tab on mobile. */
+type Tab = SidePanel | 'properties';
+
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'elements', label: 'Elements', icon: <Layers size={17} /> },
   { id: 'content', label: 'Content', icon: <ListTree size={17} /> },
   { id: 'templates', label: 'Templates', icon: <LayoutTemplate size={17} /> },
   { id: 'pages', label: 'Pages', icon: <FileText size={17} /> },
   { id: 'document', label: 'Document', icon: <Settings2 size={17} /> },
+  { id: 'guide', label: 'Help', icon: <HelpCircle size={17} /> },
 ];
 
+const MOBILE_TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  ...TABS.slice(0, 1),
+  { id: 'properties', label: 'Edit', icon: <SlidersHorizontal size={17} /> },
+  ...TABS.slice(1),
+];
+
+function panelFor(tab: Tab) {
+  switch (tab) {
+    case 'elements':
+      return <ElementsPanel />;
+    case 'content':
+      return <ContentPanel />;
+    case 'templates':
+      return <TemplatesPanel />;
+    case 'pages':
+      return <PagesPanel />;
+    case 'document':
+      return <DocumentPanel />;
+    case 'guide':
+      return <GuidePanel />;
+    case 'properties':
+      return <RightPanel />;
+  }
+}
+
+const TAB_TITLE: Record<Tab, string> = {
+  elements: 'Add an element',
+  content: 'Content',
+  templates: 'Templates',
+  pages: 'Pages',
+  document: 'Document settings',
+  guide: 'How to use Paperforge',
+  properties: 'Properties',
+};
+
 export function EditorShell() {
+  const compact = useCompactLayout();
+  return compact ? <CompactShell /> : <DesktopShell />;
+}
+
+/* ------------------------------------------------------------------ *
+ * Desktop
+ * ------------------------------------------------------------------ */
+
+function DesktopShell() {
   const panel = useEditor((s) => s.panel);
   const mode = useEditor((s) => s.mode);
   useAutosave();
@@ -57,7 +110,7 @@ export function EditorShell() {
                     onClick={() => {
                       if (panel === tab.id) setLeftOpen((open) => !open);
                       else {
-                        useEditor.getState().setPanel(tab.id);
+                        useEditor.getState().setPanel(tab.id as SidePanel);
                         setLeftOpen(true);
                       }
                     }}
@@ -75,11 +128,7 @@ export function EditorShell() {
 
             {leftOpen ? (
               <aside className="w-[290px] shrink-0 overflow-y-auto border-r border-line bg-panel">
-                {panel === 'elements' ? <ElementsPanel /> : null}
-                {panel === 'content' ? <ContentPanel /> : null}
-                {panel === 'templates' ? <TemplatesPanel /> : null}
-                {panel === 'pages' ? <PagesPanel /> : null}
-                {panel === 'document' ? <DocumentPanel /> : null}
+                {panelFor(panel)}
               </aside>
             ) : null}
           </>
@@ -97,6 +146,85 @@ export function EditorShell() {
       </div>
 
       <BottomBar />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Phones and small tablets
+ * ------------------------------------------------------------------ */
+
+function CompactShell() {
+  const mode = useEditor((s) => s.mode);
+  const selection = useEditor((s) => s.selection);
+  const [sheet, setSheet] = useState<Tab | null>(null);
+  useAutosave();
+  useShortcuts();
+
+  // Selecting something on the page is the moment you want its properties, but
+  // opening the sheet automatically would cover the thing you just tapped.
+  // A badge on the Edit tab points at it instead.
+  const hasSelection = selection.kind === 'block' || selection.kind === 'overlay';
+
+  useEffect(() => {
+    if (mode === 'preview') setSheet(null);
+  }, [mode]);
+
+  return (
+    <div className="flex h-dvh flex-col overflow-hidden bg-shell">
+      <TopToolbar compact />
+
+      <main className="min-h-0 flex-1">
+        <CanvasArea />
+      </main>
+
+      <BottomBar compact />
+
+      {mode === 'design' ? (
+        <nav
+          className="flex shrink-0 items-stretch overflow-x-auto border-t border-line bg-panel pb-[env(safe-area-inset-bottom)]"
+          aria-label="Editor panels"
+        >
+          {MOBILE_TABS.map((tab) => {
+            const active = sheet === tab.id;
+            const flagged = tab.id === 'properties' && hasSelection && !active;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                aria-label={tab.label}
+                aria-pressed={active}
+                onClick={() => setSheet(active ? null : tab.id)}
+                className={cx(
+                  'relative flex min-w-[50px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 transition-colors',
+                  active ? 'text-ink' : 'text-muted',
+                )}
+              >
+                <span
+                  className={cx(
+                    'flex h-7 w-9 items-center justify-center rounded-lg transition-colors',
+                    active && 'bg-ink text-white',
+                  )}
+                >
+                  {tab.icon}
+                </span>
+                <span className="text-[9px] font-medium">{tab.label}</span>
+                {flagged ? (
+                  <span className="absolute top-1.5 right-1/2 h-1.5 w-1.5 translate-x-4 rounded-full bg-question-hue" />
+                ) : null}
+              </button>
+            );
+          })}
+        </nav>
+      ) : null}
+
+      <BottomSheet
+        open={sheet !== null}
+        title={sheet ? TAB_TITLE[sheet] : ''}
+        onClose={() => setSheet(null)}
+      >
+        {sheet ? panelFor(sheet) : null}
+      </BottomSheet>
     </div>
   );
 }

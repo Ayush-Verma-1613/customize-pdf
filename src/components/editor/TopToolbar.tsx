@@ -23,7 +23,7 @@ import { useEditor } from '@/lib/store/editorStore';
 import { cx } from '@/lib/utils/cx';
 import { Button, IconButton, Segmented } from '@/components/ui/primitives';
 
-export function TopToolbar() {
+export function TopToolbar({ compact = false }: { compact?: boolean }) {
   const doc = useEditor((s) => s.doc);
   const laid = useEditor((s) => s.laid);
   const mode = useEditor((s) => s.mode);
@@ -59,7 +59,12 @@ export function TopToolbar() {
   };
 
   return (
-    <header className="relative z-40 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-panel px-3">
+    <header
+      className={cx(
+        'relative z-40 flex h-14 shrink-0 items-center border-b border-line bg-panel px-3',
+        compact ? 'gap-1' : 'gap-2',
+      )}
+    >
       <Link
         href="/"
         className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-slate-100 hover:text-ink"
@@ -80,7 +85,7 @@ export function TopToolbar() {
         className="min-w-0 max-w-64 flex-1 rounded-lg px-2 py-1 text-[14px] font-medium text-ink transition-colors hover:bg-slate-50 focus:bg-white focus:ring-2 focus:ring-question-hue/20 focus:outline-none"
       />
 
-      <SaveBadge state={saveState} />
+      {compact ? null : <SaveBadge state={saveState} />}
 
       <div className="mx-1 h-6 w-px bg-line" />
 
@@ -95,25 +100,28 @@ export function TopToolbar() {
         <Redo2 size={16} />
       </IconButton>
 
-      <div className="mx-1 h-6 w-px bg-line" />
-
-      <IconButton
-        label="Show grid"
-        active={showGrid}
-        onClick={() => store.getState().toggleGrid()}
-      >
-        <Grid3x3 size={16} />
-      </IconButton>
-      <IconButton
-        label="Snap to guides"
-        active={snapEnabled}
-        onClick={() => store.getState().toggleSnap()}
-      >
-        <Magnet size={16} />
-      </IconButton>
+      {compact ? null : (
+        <>
+          <div className="mx-1 h-6 w-px bg-line" />
+          <IconButton
+            label="Show grid"
+            active={showGrid}
+            onClick={() => store.getState().toggleGrid()}
+          >
+            <Grid3x3 size={16} />
+          </IconButton>
+          <IconButton
+            label="Snap to guides"
+            active={snapEnabled}
+            onClick={() => store.getState().toggleSnap()}
+          >
+            <Magnet size={16} />
+          </IconButton>
+        </>
+      )}
 
       <div className="ml-auto flex items-center gap-2">
-        {laid.warnings.length ? (
+        {laid.warnings.length > 0 && !compact ? (
           <span
             className="flex items-center gap-1.5 rounded-lg bg-structure-wash px-2.5 py-1.5 text-[12px] text-structure-hue"
             title={laid.warnings.map((w) => w.message).join('\n')}
@@ -137,12 +145,14 @@ export function TopToolbar() {
           ]}
         />
 
-        <IconButton
-          label="Download the editable file"
-          onClick={() => downloadDocumentFile(doc)}
-        >
-          <FileDown size={16} />
-        </IconButton>
+        {compact ? null : (
+          <IconButton
+            label="Download the editable file"
+            onClick={() => downloadDocumentFile(doc)}
+          >
+            <FileDown size={16} />
+          </IconButton>
+        )}
 
         <Button
           tone="primary"
@@ -153,7 +163,9 @@ export function TopToolbar() {
           onClick={exportPdf}
           title={fontsReady ? undefined : 'Fonts are still loading'}
         >
-          {exporting ? `Page ${exporting.done}/${exporting.total}` : 'Export PDF'}
+          <span className={compact ? 'sr-only' : undefined}>
+            {exporting ? `Page ${exporting.done}/${exporting.total}` : 'Export PDF'}
+          </span>
         </Button>
       </div>
 

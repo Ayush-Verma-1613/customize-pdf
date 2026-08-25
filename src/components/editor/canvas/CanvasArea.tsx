@@ -2,13 +2,18 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useEditor } from '@/lib/store/editorStore';
+import { useCompactLayout } from '@/lib/utils/useMedia';
 import { cx } from '@/lib/utils/cx';
 import { clamp } from '@/lib/utils/geom';
 import { InlineTextEditor } from './InlineTextEditor';
 import { PageStage } from './PageStage';
 
-const PAGE_GAP = 40;
-const PADDING = 40;
+const PAGE_GAP = 44;
+/** Leaves room for the selected block's gutter toolbar beside the page. */
+const PADDING = 56;
+/** Phones get the page edge-to-edge; there is no gutter to reserve. */
+const COMPACT_PADDING = 10;
+const COMPACT_GAP = 22;
 
 /**
  * The scrolling document view. Zoom is applied per page rather than to a single
@@ -24,11 +29,14 @@ export function CanvasArea() {
   const setZoom = useEditor((s) => s.setZoom);
   const setActivePage = useEditor((s) => s.setActivePage);
 
+  const compact = useCompactLayout();
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const programmaticScroll = useRef(false);
 
   const firstPage = laid.pages[0];
+  const padding = compact ? COMPACT_PADDING : PADDING;
+  const gap = compact ? COMPACT_GAP : PAGE_GAP;
 
   /* Fit-to-width / fit-to-page recompute on container resize. */
   useLayoutEffect(() => {
@@ -36,8 +44,8 @@ export function CanvasArea() {
     if (!node || !firstPage || fitMode === 'manual') return;
 
     const apply = () => {
-      const available = node.clientWidth - PADDING * 2;
-      const availableHeight = node.clientHeight - PADDING * 2;
+      const available = node.clientWidth - padding * 2;
+      const availableHeight = node.clientHeight - padding * 2;
       const next =
         fitMode === 'width'
           ? available / firstPage.width
@@ -49,7 +57,7 @@ export function CanvasArea() {
     const observer = new ResizeObserver(apply);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [fitMode, firstPage, setZoom]);
+  }, [fitMode, firstPage, padding, setZoom]);
 
   /* Ctrl/Cmd + wheel zooms, anchored on the pointer. */
   useEffect(() => {
@@ -63,6 +71,55 @@ export function CanvasArea() {
     };
     node.addEventListener('wheel', onWheel, { passive: false });
     return () => node.removeEventListener('wheel', onWheel);
+  }, [setZoom]);
+
+  /* Two-finger pinch zoom. `touch-action: pan-x pan-y` leaves one-finger
+     scrolling to the browser and hands multi-touch gestures to us. */
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+
+    const active = new Map<number, { x: number; y: number }>();
+    let startSpread = 0;
+    let startZoom = 1;
+
+    const spread = () => {
+      const [a, b] = [...active.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
+    const down = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch') return;
+      active.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (active.size === 2) {
+        startSpread = spread();
+        startZoom = useEditor.getState().zoom;
+      }
+    };
+
+    const move = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch' || !active.has(event.pointerId)) return;
+      active.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (active.size !== 2 || startSpread <= 0) return;
+      event.preventDefault();
+      setZoom(clamp((startZoom * spread()) / startSpread, 0.15, 5), 'manual');
+    };
+
+    const up = (event: PointerEvent) => {
+      active.delete(event.pointerId);
+      if (active.size < 2) startSpread = 0;
+    };
+
+    node.addEventListener('pointerdown', down);
+    node.addEventListener('pointermove', move, { passive: false });
+    node.addEventListener('pointerup', up);
+    node.addEventListener('pointercancel', up);
+    return () => {
+      node.removeEventListener('pointerdown', down);
+      node.removeEventListener('pointermove', move);
+      node.removeEventListener('pointerup', up);
+      node.removeEventListener('pointercancel', up);
+    };
   }, [setZoom]);
 
   /* Track which page is centred so the page indicator stays honest. */
@@ -94,12 +151,12 @@ export function CanvasArea() {
     const node = scrollRef.current;
     if (!target || !node) return;
     programmaticScroll.current = true;
-    node.scrollTo({ top: Math.max(0, target.offsetTop - PADDING), behavior: 'smooth' });
+    node.scrollTo({ top: Math.max(0, target.offsetTop - padding), behavior: 'smooth' });
     const timer = setTimeout(() => {
       programmaticScroll.current = false;
     }, 400);
     return () => clearTimeout(timer);
-  }, [activePage]);
+  }, [activePage, padding]);
 
   return (
     <div
@@ -109,10 +166,11 @@ export function CanvasArea() {
         'canvas-backdrop relative h-full overflow-auto',
         mode === 'preview' && 'cursor-default',
       )}
+      style={{ touchAction: 'pan-x pan-y' }}
     >
       <div
         className="flex flex-col items-center"
-        style={{ gap: PAGE_GAP, paddingBlock: PADDING, paddingInline: PADDING }}
+        style={{ gap, paddingBlock: padding, paddingInline: padding }}
       >
         {laid.pages.map((page, index) => (
           <div
