@@ -166,9 +166,8 @@ function CompactShell() {
   // A badge on the Edit tab points at it instead.
   const hasSelection = selection.kind === 'block' || selection.kind === 'overlay';
 
-  useEffect(() => {
-    if (mode === 'preview') setSheet(null);
-  }, [mode]);
+  // Preview hides the chrome, so no panel can be open in it.
+  const openSheet = mode === 'preview' ? null : sheet;
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-shell">
@@ -186,7 +185,7 @@ function CompactShell() {
           aria-label="Editor panels"
         >
           {MOBILE_TABS.map((tab) => {
-            const active = sheet === tab.id;
+            const active = openSheet === tab.id;
             const flagged = tab.id === 'properties' && hasSelection && !active;
             return (
               <button
@@ -219,11 +218,12 @@ function CompactShell() {
       ) : null}
 
       <BottomSheet
-        open={sheet !== null}
-        title={sheet ? TAB_TITLE[sheet] : ''}
+        key={openSheet ?? 'none'}
+        open={openSheet !== null}
+        title={openSheet ? TAB_TITLE[openSheet] : ''}
         onClose={() => setSheet(null)}
       >
-        {sheet ? panelFor(sheet) : null}
+        {openSheet ? panelFor(openSheet) : null}
       </BottomSheet>
     </div>
   );

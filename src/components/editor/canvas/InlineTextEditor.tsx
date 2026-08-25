@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { baseStyle } from '@/lib/engine/blocks';
 import type { Frame, LaidOutPage, TextFrame } from '@/lib/engine/types';
 import { fontStack } from '@/lib/model/defaults';
@@ -72,6 +72,38 @@ export function InlineTextEditor({ page, zoom }: Props) {
         : undefined,
   });
 
+  /**
+   * Read the editor back into runs. Declared before the effects that call it so
+   * the escape handler always closes over the current document.
+   */
+  const commit = useCallback(() => {
+    const node = ref.current;
+    if (!node) return;
+    const html = node.innerHTML;
+    if (html === committed.current) return;
+    committed.current = html;
+    const next = htmlToRuns(html);
+
+    if (block) {
+      store.getState().updateBlock(
+        block.id,
+        (draft) => {
+          if (
+            draft.type === 'heading' ||
+            draft.type === 'paragraph' ||
+            draft.type === 'question' ||
+            draft.type === 'section'
+          ) {
+            draft.runs = next;
+          }
+        },
+        { coalesce: `text:${block.id}` },
+      );
+    } else if (overlay) {
+      store.getState().updateOverlay(overlay.id, { runs: next }, { coalesce: `text:${overlay.id}` });
+    }
+  }, [block, overlay, store]);
+
   useLayoutEffect(() => {
     if (!ref.current || !runs) return;
     const html = runsToHtml(runs);
@@ -100,38 +132,9 @@ export function InlineTextEditor({ page, zoom }: Props) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingId]);
+  }, [commit, editingId, store]);
 
   if (!editingId || !frame || !runs || !target) return null;
-
-  const commit = () => {
-    const node = ref.current;
-    if (!node) return;
-    const html = node.innerHTML;
-    if (html === committed.current) return;
-    committed.current = html;
-    const next = htmlToRuns(html);
-
-    if (block) {
-      store.getState().updateBlock(
-        block.id,
-        (draft) => {
-          if (
-            draft.type === 'heading' ||
-            draft.type === 'paragraph' ||
-            draft.type === 'question' ||
-            draft.type === 'section'
-          ) {
-            draft.runs = next;
-          }
-        },
-        { coalesce: `text:${block.id}` },
-      );
-    } else if (overlay) {
-      store.getState().updateOverlay(overlay.id, { runs: next }, { coalesce: `text:${overlay.id}` });
-    }
-  };
 
   const px = (v: number) => v * zoom;
   const padTop = frame.padding?.top ?? 0;

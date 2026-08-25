@@ -9,7 +9,6 @@ import {
   CloudOff,
   Download,
   Eye,
-  FileDown,
   Grid3x3,
   Loader2,
   Magnet,
@@ -18,10 +17,10 @@ import {
   Undo2,
 } from 'lucide-react';
 import { downloadPdf } from '@/lib/export/pdf';
-import { downloadDocumentFile } from '@/lib/store/storage';
 import { useEditor } from '@/lib/store/editorStore';
 import { cx } from '@/lib/utils/cx';
 import { Button, IconButton, Segmented } from '@/components/ui/primitives';
+import { DocumentMenu } from './DocumentMenu';
 
 export function TopToolbar({ compact = false }: { compact?: boolean }) {
   const doc = useEditor((s) => s.doc);
@@ -145,14 +144,7 @@ export function TopToolbar({ compact = false }: { compact?: boolean }) {
           ]}
         />
 
-        {compact ? null : (
-          <IconButton
-            label="Download the editable file"
-            onClick={() => downloadDocumentFile(doc)}
-          >
-            <FileDown size={16} />
-          </IconButton>
-        )}
+        <DocumentMenu compact={compact} />
 
         <Button
           tone="primary"

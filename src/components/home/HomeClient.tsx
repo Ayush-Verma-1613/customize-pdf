@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
+  AlertCircle,
   ArrowRight,
   ChevronDown,
   Copy,
+  Download,
   FileUp,
   Loader2,
   Plus,
@@ -17,13 +19,16 @@ import { createDocument } from '@/lib/model/factory';
 import { parseContent, SAMPLE_INPUT } from '@/lib/parse/content';
 import { TEMPLATES, TEMPLATE_CATEGORIES, buildFromTemplate, getTemplate } from '@/lib/templates';
 import {
+  deleteAllDocuments,
   deleteDocument,
   duplicateDocument,
+  downloadDocumentFile,
   listDocuments,
-  readDocumentFile,
+  loadDocument,
   saveDocument,
   type DocumentSummary,
 } from '@/lib/store/storage';
+import { ACCEPTED_IMPORT_TYPES, ImportError, importFile } from '@/lib/import';
 import { cx } from '@/lib/utils/cx';
 import { uid } from '@/lib/utils/id';
 import { Button, Field, TextInput } from '@/components/ui/primitives';
@@ -41,17 +46,28 @@ export function HomeClient() {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [documents, setDocuments] = useState<DocumentSummary[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importProblem, setImportProblem] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   const template = getTemplate(templateId) ?? TEMPLATES[0];
 
+  // A counter rather than a direct setState call, so reloading the list is a
+  // subscription the effect reacts to instead of a render-time side effect.
+  const [reloadToken, setReloadToken] = useState(0);
   const refresh = useCallback(async () => {
-    setDocuments(await listDocuments());
+    setReloadToken((n) => n + 1);
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let cancelled = false;
+    listDocuments().then((rows) => {
+      if (!cancelled) setDocuments(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken]);
 
   const create = async () => {
     setBusy(true);
@@ -71,13 +87,22 @@ export function HomeClient() {
     }
   };
 
-  const importFile = async (file: File | undefined) => {
+  const runImport = async (file: File | undefined) => {
     if (!file) return;
-    const doc = await readDocumentFile(file);
-    if (!doc) return;
-    doc.id = uid('doc');
-    await saveDocument(doc);
-    router.push(`/editor/${doc.id}`);
+    setImportProblem(null);
+    setImporting(true);
+    try {
+      const result = await importFile(file);
+      await saveDocument(result.doc);
+      router.push(`/editor/${result.doc.id}`);
+    } catch (error) {
+      setImportProblem(
+        error instanceof ImportError
+          ? error.message
+          : `That file could not be opened. ${error instanceof Error ? error.message : ''}`.trim(),
+      );
+      setImporting(false);
+    }
   };
 
   return (
@@ -95,19 +120,23 @@ export function HomeClient() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <Button
-              icon={<FileUp size={14} />}
+              icon={importing ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
+              disabled={importing}
               onClick={() => importRef.current?.click()}
+              title="Open a PDF, Word file, text file or Paperforge document"
             >
-              <span className="hidden sm:inline">Import a file</span>
-              <span className="sm:hidden">Import</span>
+              <span className="hidden sm:inline">
+                {importing ? 'Reading the file…' : 'Import a file'}
+              </span>
+              <span className="sm:hidden">{importing ? '…' : 'Import'}</span>
             </Button>
             <input
               ref={importRef}
               type="file"
-              accept=".json,application/json"
+              accept={ACCEPTED_IMPORT_TYPES}
               className="hidden"
               onChange={(e) => {
-                void importFile(e.target.files?.[0]);
+                void runImport(e.target.files?.[0]);
                 e.target.value = '';
               }}
             />
@@ -116,6 +145,20 @@ export function HomeClient() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+        {importProblem ? (
+          <p className="animate-rise mb-4 flex items-start gap-2 rounded-xl border border-danger/20 bg-danger-wash px-4 py-3 text-[13px] leading-relaxed text-danger">
+            <AlertCircle size={15} className="mt-0.5 shrink-0" />
+            <span className="flex-1">{importProblem}</span>
+            <button
+              type="button"
+              onClick={() => setImportProblem(null)}
+              className="shrink-0 underline-offset-2 hover:underline"
+            >
+              Dismiss
+            </button>
+          </p>
+        ) : null}
+
         <HowItWorks />
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -245,83 +288,210 @@ export function HomeClient() {
           </div>
         </section>
 
-        <section className="mt-12">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[13px] font-semibold tracking-[0.08em] text-muted uppercase">
-              My documents
-            </h2>
+        <DocumentLibrary
+          documents={documents}
+          onRefresh={refresh}
+          onNewBlank={async () => {
+            const doc = createDocument('Untitled document');
+            await saveDocument(doc);
+            router.push(`/editor/${doc.id}`);
+          }}
+        />
+
+      </main>
+    </div>
+  );
+}
+
+/**
+ * The saved-document list.
+ *
+ * Deleting is permanent - nothing is stored anywhere but this browser - so both
+ * the single and the bulk delete ask once, in place, and say what will be lost.
+ * The actions are always visible rather than revealed on hover, because on a
+ * phone there is no hover to reveal them with.
+ */
+function DocumentLibrary({
+  documents,
+  onRefresh,
+  onNewBlank,
+}: {
+  documents: DocumentSummary[] | null;
+  onRefresh: () => Promise<void>;
+  onNewBlank: () => void;
+}) {
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirmingAll, setConfirmingAll] = useState(false);
+  const [working, setWorking] = useState(false);
+
+  const removeOne = async (id: string) => {
+    setWorking(true);
+    await deleteDocument(id);
+    await onRefresh();
+    setConfirmingId(null);
+    setWorking(false);
+  };
+
+  const removeAll = async () => {
+    setWorking(true);
+    await deleteAllDocuments();
+    await onRefresh();
+    setConfirmingAll(false);
+    setWorking(false);
+  };
+
+  const saveCopy = async (id: string) => {
+    const doc = await loadDocument(id);
+    if (doc) downloadDocumentFile(doc);
+  };
+
+  return (
+    <section className="mt-12">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[13px] font-semibold tracking-[0.08em] text-muted uppercase">
+          My documents{documents?.length ? ` · ${documents.length}` : ''}
+        </h2>
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" tone="ghost" icon={<Plus size={13} />} onClick={onNewBlank}>
+            Blank page
+          </Button>
+          {documents?.length ? (
             <Button
               size="sm"
               tone="ghost"
-              icon={<Plus size={13} />}
-              onClick={async () => {
-                const doc = createDocument('Untitled document');
-                await saveDocument(doc);
-                router.push(`/editor/${doc.id}`);
+              className="text-danger hover:bg-danger-wash"
+              icon={<Trash2 size={13} />}
+              onClick={() => {
+                setConfirmingId(null);
+                setConfirmingAll(true);
               }}
             >
-              Blank page
+              Delete all
             </Button>
-          </div>
+          ) : null}
+        </div>
+      </div>
 
-          {documents === null ? (
-            <p className="text-sm text-muted">Looking for your documents…</p>
-          ) : documents.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-line bg-panel px-4 py-8 text-center text-sm text-muted">
-              Nothing saved yet. Create your first document above — it is stored
-              in this browser, so it will be waiting when you come back.
-            </p>
-          ) : (
-            <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-              {documents.map((summary) => (
-                <li
-                  key={summary.id}
-                  className="group relative rounded-xl border border-line bg-panel p-3.5 transition-shadow hover:shadow-sm"
-                >
-                  <Link href={`/editor/${summary.id}`} className="block">
-                    <p className="truncate text-[14px] font-medium text-ink">{summary.title}</p>
-                    <p className="mt-0.5 text-[11px] text-faint">
-                      {getTemplate(summary.templateId ?? '')?.name ?? 'Document'} ·{' '}
-                      {summary.pageCount} page{summary.pageCount === 1 ? '' : 's'}
-                    </p>
-                    <p className="mt-2 text-[11px] text-faint">
-                      Edited {formatWhen(summary.updatedAt)}
-                    </p>
-                  </Link>
+      {confirmingAll ? (
+        <div className="animate-rise mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-danger/25 bg-danger-wash px-4 py-3">
+          <p className="flex-1 text-[13px] leading-relaxed text-danger">
+            Delete all {documents?.length ?? 0} documents? They are stored only
+            in this browser, so this cannot be undone.
+          </p>
+          <Button
+            size="sm"
+            tone="danger"
+            disabled={working}
+            icon={working ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+            onClick={removeAll}
+          >
+            Yes, delete everything
+          </Button>
+          <Button size="sm" onClick={() => setConfirmingAll(false)}>
+            Keep them
+          </Button>
+        </div>
+      ) : null}
 
-                  <span className="absolute top-2.5 right-2.5 hidden gap-0.5 group-hover:flex">
-                    <button
-                      type="button"
-                      title="Duplicate"
-                      aria-label="Duplicate"
-                      onClick={async () => {
-                        await duplicateDocument(summary.id, uid('doc'));
-                        void refresh();
-                      }}
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-slate-100"
-                    >
-                      <Copy size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      title="Delete"
-                      aria-label="Delete"
-                      onClick={async () => {
-                        await deleteDocument(summary.id);
-                        void refresh();
-                      }}
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-danger hover:bg-danger-wash"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+      {documents === null ? (
+        <p className="text-sm text-muted">Looking for your documents…</p>
+      ) : documents.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-line bg-panel px-4 py-8 text-center text-sm text-muted">
+          Nothing saved yet. Create your first document above — it is stored in
+          this browser, so it will be waiting when you come back.
+        </p>
+      ) : (
+        <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {documents.map((summary) => (
+            <li
+              key={summary.id}
+              className="flex flex-col rounded-xl border border-line bg-panel p-3.5 transition-shadow hover:shadow-sm"
+            >
+              <Link href={`/editor/${summary.id}`} className="block min-w-0">
+                <p className="truncate text-[14px] font-medium text-ink">{summary.title}</p>
+                <p className="mt-0.5 text-[11px] text-faint">
+                  {getTemplate(summary.templateId ?? '')?.name ?? 'Document'} ·{' '}
+                  {summary.pageCount} page{summary.pageCount === 1 ? '' : 's'}
+                </p>
+                <p className="mt-2 text-[11px] text-faint">
+                  Edited {formatWhen(summary.updatedAt)}
+                </p>
+              </Link>
+
+              {confirmingId === summary.id ? (
+                <div className="animate-rise mt-3 flex items-center gap-1.5 border-t border-line-soft pt-2.5">
+                  <span className="flex-1 text-[11.5px] leading-snug text-danger">
+                    Delete this document?
                   </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </main>
-    </div>
+                  <Button size="sm" tone="danger" disabled={working} onClick={() => removeOne(summary.id)}>
+                    Delete
+                  </Button>
+                  <Button size="sm" tone="ghost" onClick={() => setConfirmingId(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-3 flex items-center gap-0.5 border-t border-line-soft pt-2.5">
+                  <CardAction
+                    label="Duplicate"
+                    onClick={async () => {
+                      await duplicateDocument(summary.id, uid('doc'));
+                      await onRefresh();
+                    }}
+                  >
+                    <Copy size={13} />
+                  </CardAction>
+                  <CardAction label="Save a copy to my computer" onClick={() => saveCopy(summary.id)}>
+                    <Download size={13} />
+                  </CardAction>
+                  <CardAction
+                    label="Delete"
+                    danger
+                    className="ml-auto"
+                    onClick={() => {
+                      setConfirmingAll(false);
+                      setConfirmingId(summary.id);
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </CardAction>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function CardAction({
+  label,
+  onClick,
+  danger,
+  className,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className={cx(
+        'flex h-7 w-7 items-center justify-center rounded-lg transition-colors',
+        danger ? 'text-danger hover:bg-danger-wash' : 'text-muted hover:bg-slate-100',
+        className,
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -392,8 +562,10 @@ function HowItWorks() {
           ))}
           <p className="text-[11px] text-faint sm:col-span-2">
             None of this is required — you can also start with a blank page and
-            build it by hand. Everything the layout decides can be overridden
-            afterwards.
+            build it by hand, or use <strong className="text-muted">Import a
+            file</strong> to open a Word document, a PDF, a text file or a
+            Paperforge document you saved earlier. Everything the layout decides
+            can be overridden afterwards.
           </p>
         </div>
       ) : null}

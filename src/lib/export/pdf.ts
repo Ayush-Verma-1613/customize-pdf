@@ -21,7 +21,6 @@ import type {
   CellFrame,
   Frame,
   LaidOutDoc,
-  LaidOutPage,
   LineBox,
   TextFrame,
 } from '@/lib/engine/types';

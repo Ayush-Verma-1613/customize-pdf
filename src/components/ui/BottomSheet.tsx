@@ -28,10 +28,6 @@ export function BottomSheet({
   const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open) setSnap(0);
-  }, [open, title]);
-
-  useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();

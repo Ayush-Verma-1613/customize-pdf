@@ -1,4 +1,4 @@
-import { makeRow, makeTable, text } from '@/lib/model/factory';
+import { makeRow, makeTable } from '@/lib/model/factory';
 import type { Block, QuestionBlock, QuestionPart, Run, TableRow } from '@/lib/model/types';
 import { uid } from '@/lib/utils/id';
 import { parseInline } from './inline';

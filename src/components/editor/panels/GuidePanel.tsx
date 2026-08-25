@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   ChevronDown,
+  FileUp,
   Hand,
   Keyboard,
   Layers,
@@ -196,6 +197,29 @@ export function GuidePanel() {
           <li>
             Tinos matches Times New Roman, Arimo matches Arial and Cousine
             matches Courier New — safe choices if a colleague expects those.
+          </li>
+        </ul>
+      </Collapsible>
+
+      <Collapsible title="Opening files you already have" icon={<FileUp size={14} />}>
+        <ul className="grid gap-2 text-[11.5px] leading-relaxed text-muted">
+          <li>
+            <strong className="text-ink-soft">Import</strong> on the home screen
+            opens a Word file (.docx), a PDF, a text file, a web page or a
+            Paperforge document.
+          </li>
+          <li>
+            A Word file keeps its headings, lists and tables. A PDF gives up its
+            text, which is then re-numbered and re-flowed — worth a read-through
+            before you print it.
+          </li>
+          <li>
+            A PDF that Paperforge made comes back <em>exactly</em> as it was:
+            the editable document travels inside the file.
+          </li>
+          <li>
+            Anything that looks like a question paper — numbered lines, sections,
+            marks in brackets — lands in the question paper layout automatically.
           </li>
         </ul>
       </Collapsible>

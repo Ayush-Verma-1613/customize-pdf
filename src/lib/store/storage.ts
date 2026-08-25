@@ -108,6 +108,17 @@ export async function saveDocument(doc: PaperDoc, pageCount?: number): Promise<v
 
 export async function deleteDocument(id: string): Promise<void> {
   await transact('readwrite', (store) => store.delete(id));
+  // The recovery slot may still hold the document we just removed.
+  const snapshot = readRecovery();
+  if (snapshot?.doc.id === id) clearRecovery();
+}
+
+/** Remove every stored document. Irreversible - always confirm first. */
+export async function deleteAllDocuments(): Promise<number> {
+  const existing = await listDocuments(Number.MAX_SAFE_INTEGER);
+  await transact('readwrite', (store) => store.clear());
+  clearRecovery();
+  return existing.length;
 }
 
 export async function duplicateDocument(id: string, newId: string): Promise<PaperDoc | null> {

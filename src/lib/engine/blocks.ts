@@ -9,7 +9,7 @@ import type {
   Theme,
 } from '@/lib/model/types';
 import { formatCounter, applyFormat, type NumberingResult } from './numbering';
-import { measureTable, rowsHeight, sliceCells, type MeasuredTable } from './table';
+import { measureTable, rowsHeight, sliceCells } from './table';
 import { linesHeight, restack, wrapRuns, measureRuns, type BaseTextStyle } from './text';
 import type { Frame, FrameSource, LayoutWarning, LineBox, TextItem } from './types';
 
