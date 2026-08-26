@@ -44,13 +44,6 @@ export function pageRanges(doc: PaperDoc, laid: LaidOutDoc): PageRange[] {
     }
   }
 
-  // Page breaks sit between pages; pull a leading break into the page it opens.
-  for (const range of ranges) {
-    while (range.start > 0 && doc.flow[range.start - 1]?.type === 'pageBreak') {
-      range.start -= 1;
-    }
-  }
-
   return ranges;
 }
 
@@ -61,11 +54,17 @@ export function insertPage(doc: PaperDoc, laid: LaidOutDoc, after: number): Pape
   const ranges = pageRanges(doc, laid);
   const at = ranges[after]?.end ?? doc.flow.length;
   const flow = [...doc.flow];
-  // Two consecutive breaks leave one genuinely empty page between them.
-  const breaks: Block[] = [
-    { id: uid('b'), type: 'pageBreak' },
-    { id: uid('b'), type: 'pageBreak' },
-  ];
+
+  // One break opens the blank page. A second is only needed when content
+  // follows, to close the blank page again - at the end of the document the
+  // first break already leaves an empty page behind it.
+  const hasContentAfter = at < flow.length;
+  const breaks: Block[] = hasContentAfter
+    ? [
+        { id: uid('b'), type: 'pageBreak' },
+        { id: uid('b'), type: 'pageBreak' },
+      ]
+    : [{ id: uid('b'), type: 'pageBreak' }];
   flow.splice(at, 0, ...breaks);
   return {
     ...doc,
