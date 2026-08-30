@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, FileText, ListChecks, ShieldCheck } from 'lucide-react';
+import { cx } from '@/lib/utils/cx';
 
 /**
  * The footer at the end of the page.
@@ -59,7 +60,7 @@ export function SiteFooter({ step, templateName }: { step: number; templateName:
        type cannot, and a leaf behind the copyright line is the kind of detail
        that reads as a bug. Still short of opaque, so the ground is dimmed
        rather than painted out. */
-    <div className="bg-white/45 px-4 pt-3.5 pb-5 sm:px-6">
+    <div className="bg-white/45 px-4 pt-3.5 pb-4 sm:px-6 sm:pb-5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
@@ -86,9 +87,13 @@ export function SiteFooter({ step, templateName }: { step: number; templateName:
         </p>
       </div>
 
-      <div className="mt-4 border-t border-forge-line pt-5">
-        <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
-          <div className="min-w-0">
+      {/* Two columns from the smallest screen up. Stacking all four made the
+          footer a screen and a half of its own, and these lists are short
+          enough to read side by side; only the brand and the storage note,
+          which are prose rather than lists, keep the full width. */}
+      <div className="mt-3 border-t border-forge-line pt-4 sm:mt-4 sm:pt-5">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:gap-x-8 sm:gap-y-6 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+          <div className="col-span-2 min-w-0 lg:col-span-1">
             <span className="flex items-center gap-2">
               <Image
                 src="/logo.png"
@@ -101,12 +106,12 @@ export function SiteFooter({ step, templateName }: { step: number; templateName:
                 Docraft
               </span>
             </span>
-            <p className="mt-2.5 max-w-[34ch] text-[12.5px] leading-relaxed text-forge-ink-soft">
+            <p className="mt-2 max-w-[34ch] text-[12.5px] leading-snug text-forge-ink-soft sm:mt-2.5 sm:leading-relaxed">
               A document designer for teachers. Paste your questions in as plain text, pick a
               template, and get a laid-out paper you can edit anywhere and print exactly as it
               looks here.
             </p>
-            <p className="mt-2.5 text-[11.5px] leading-relaxed text-forge-muted">
+            <p className="mt-2.5 hidden text-[11.5px] leading-relaxed text-forge-muted sm:block">
               Thirteen templates, five typefaces, real pagination — tables that split across
               pages and repeat their header, sections that renumber themselves.
             </p>
@@ -129,10 +134,11 @@ export function SiteFooter({ step, templateName }: { step: number; templateName:
             tint="text-forge-green"
             title="Your documents"
             items={KEEPS}
+            className="col-span-2 lg:col-span-1"
           />
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-forge-line pt-3.5 text-[11.5px] text-forge-muted">
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-forge-line pt-3 text-[11.5px] text-forge-muted sm:mt-5 sm:pt-3.5">
           <span>© {new Date().getFullYear()} Docraft</span>
           <span aria-hidden className="text-forge-line">
             ·
@@ -153,21 +159,23 @@ function FooterColumn({
   tint,
   title,
   items,
+  className,
 }: {
   icon: React.ReactNode;
   tint: string;
   title: string;
   items: string[];
+  className?: string;
 }) {
   return (
-    <div className="min-w-0">
+    <div className={cx('min-w-0', className)}>
       <h2 className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.08em] text-forge-ink uppercase">
         <span className={`shrink-0 ${tint}`}>{icon}</span>
         {title}
       </h2>
-      <ul className="mt-2.5 space-y-1.5">
+      <ul className="mt-2 space-y-1 sm:mt-2.5 sm:space-y-1.5">
         {items.map((item) => (
-          <li key={item} className="text-[12px] leading-relaxed text-forge-ink-soft">
+          <li key={item} className="text-[11.5px] leading-snug text-forge-ink-soft sm:text-[12px] sm:leading-relaxed">
             {item}
           </li>
         ))}
