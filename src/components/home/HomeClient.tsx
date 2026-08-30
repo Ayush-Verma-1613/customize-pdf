@@ -295,7 +295,16 @@ export function HomeClient() {
           {preview}
         </div>
       ) : (
-        <div className="flex h-[74dvh] min-h-[380px] flex-col">
+        /* Every tab gets the same room its desktop column has, rather than the
+           part of a screen left between the stepper and the footer - so the
+           same templates are on offer and the same fields are in reach on a
+           phone as on a laptop.
+
+           That makes the body taller than the screen, which is the point: the
+           page scrolls until the panel is fully uncovered, from there the panel
+           scrolls inside itself exactly as it does on the desktop, and the
+           footer arrives at the end of the page instead of sitting across it. */
+        <div className="flex h-[930px] flex-col">
           <div className="flex shrink-0 gap-1.5 px-2.5 pt-2.5 pb-2">
             {(['templates', 'preview', 'settings'] as MobileTab[]).map((id) => (
               <button

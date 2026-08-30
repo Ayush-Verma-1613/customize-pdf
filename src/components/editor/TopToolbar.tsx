@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -23,6 +22,7 @@ import { cx } from '@/lib/utils/cx';
 import { Button, IconButton, Segmented } from '@/components/ui/primitives';
 import { useCommands } from './CommandLayer';
 import { DocumentMenu } from './DocumentMenu';
+import { useLeaveGuard } from './LeaveGuard';
 
 export function TopToolbar({ compact = false }: { compact?: boolean }) {
   const doc = useEditor((s) => s.doc);
@@ -38,6 +38,7 @@ export function TopToolbar({ compact = false }: { compact?: boolean }) {
   const store = useEditor;
 
   const { host, openPalette, exporting, exportError } = useCommands();
+  const { leaveTo, dialog: leaveDialog } = useLeaveGuard();
 
   return (
     <header
@@ -50,14 +51,18 @@ export function TopToolbar({ compact = false }: { compact?: boolean }) {
         compact ? 'gap-1' : 'gap-2',
       )}
     >
-      <Link
-        href="/"
+      {/* A button rather than a link: the way out has to be able to stop and
+          ask first, and a real <a> would have navigated before it could. */}
+      <button
+        type="button"
+        onClick={() => leaveTo('/')}
         className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-[#f1ede6] hover:text-ink"
         title="All documents"
         aria-label="All documents"
       >
         <ArrowLeft size={16} />
-      </Link>
+      </button>
+      {leaveDialog}
 
       <input
         value={doc.title}
@@ -189,6 +194,13 @@ export function TopToolbar({ compact = false }: { compact?: boolean }) {
  * Editing saves itself a moment after you stop typing, but "it probably saved"
  * is not a thing anybody wants to feel about work they care about - so the
  * status is a button, and pressing it writes the document out there and then.
+ *
+ * On a phone it is a filled green button rather than the quiet text the desktop
+ * toolbar can afford. Dropping the label there left a bare tick, which reads as
+ * an icon reporting a fact rather than something you are invited to press - and
+ * saving by hand is exactly what somebody wants on the device they are most
+ * likely to close mid-sentence. Green for the same reason it is green when the
+ * work is safe. The error state keeps its red, which outranks any of that.
  */
 function SaveButton({
   state,
@@ -213,6 +225,7 @@ function SaveButton({
     },
   } as const;
   const entry = map[state];
+  const green = compact && state !== 'error';
 
   return (
     <button
@@ -226,12 +239,12 @@ function SaveButton({
       }
       aria-label="Save now"
       className={cx(
-        'flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium whitespace-nowrap transition-colors disabled:cursor-default',
-        entry.tone,
+        'flex h-7 shrink-0 items-center gap-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-colors disabled:cursor-default',
+        green ? 'bg-success px-2.5 text-white hover:bg-[#349260]' : cx('px-2', entry.tone),
       )}
     >
       {entry.icon}
-      {compact ? null : entry.label}
+      {entry.label}
     </button>
   );
 }

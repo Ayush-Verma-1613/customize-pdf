@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { ErrorBoundary, RuntimeErrorReporter } from '@/components/ui/ErrorBoundary';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -19,7 +20,12 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      {/* Wrapped at the root so a crash anywhere - either route, either kind -
+          arrives as something the reader can act on rather than a blank page. */}
+      <body className="antialiased">
+        <ErrorBoundary>{children}</ErrorBoundary>
+        <RuntimeErrorReporter />
+      </body>
     </html>
   );
 }
