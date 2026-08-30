@@ -142,6 +142,8 @@ export interface TemplateField {
   placeholder?: string;
   default?: string;
   multiline?: boolean;
+  /** Turns the field into a picker. Free text when omitted. */
+  options?: string[];
 }
 
 export interface TemplateInput {
@@ -149,19 +151,40 @@ export interface TemplateInput {
   fields: Record<string, string>;
   /** Blocks parsed from the teacher's pasted content, inserted into the body. */
   body: Block[];
+  /** Which of the template's body layouts to build. Defaults to the first. */
+  variant?: string;
+}
+
+/**
+ * One of the body layouts a template can build.
+ *
+ * The masthead, page setup and typography are the template; the arrangement of
+ * the body underneath is a variant. Splitting them means somebody can try a
+ * different layout for the same document without starting again.
+ */
+export interface TemplateVariant {
+  id: string;
+  name: string;
+  description: string;
+  /** Two-line sketch drawn on the variant chip. */
+  preview: string[];
 }
 
 export interface TemplateDef {
   id: string;
   name: string;
-  category: 'Teaching' | 'School admin' | 'Business';
+  category: 'Teaching' | 'School admin' | 'Business' | 'Personal';
   description: string;
   /** Two-line preview drawn on the template card. */
   preview: string[];
+  /** Short tagline on the card, saying what this one is for. */
+  badge: string;
   accent: string;
   fields: TemplateField[];
   /** Whether pasted content is merged into the template body. */
   acceptsContent: boolean;
+  /** Alternative body layouts. Omitted when the template has only one. */
+  variants?: TemplateVariant[];
   build: (input: TemplateInput) => PaperDoc;
 }
 

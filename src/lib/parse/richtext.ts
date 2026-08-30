@@ -25,6 +25,12 @@ export function runsToHtml(runs: Run[]): string {
       if (run.highlight) styles.push(`background-color:${run.highlight}`);
       if (run.letterSpacing) styles.push(`letter-spacing:${run.letterSpacing}px`);
 
+      // An explicit "off" has to be written out, or a word un-bolded inside a
+      // bold heading would look bold in the editor and print plain.
+      if (run.bold === false) styles.push('font-weight:400');
+      if (run.italic === false) styles.push('font-style:normal');
+      if (run.underline === false && !run.strike) styles.push('text-decoration:none');
+
       let html = text;
       if (run.script === 'super') html = `<sup>${html}</sup>`;
       if (run.script === 'sub') html = `<sub>${html}</sub>`;
@@ -81,10 +87,30 @@ function marksFromElement(element: HTMLElement): Marks {
   const marks: Marks = { ...(TAG_MARKS[element.tagName] ?? {}) };
   const style = element.style;
 
-  if (style.fontWeight === 'bold' || Number(style.fontWeight) >= 600) marks.bold = true;
+  // Tri-state on purpose. A block can be bold on its own account - a heading
+  // always is - so "not mentioned" and "explicitly switched off" have to be
+  // different answers, or taking bold off one word inside a heading does
+  // nothing at all.
+  const weight = style.fontWeight;
+  if (weight === 'bold' || Number(weight) >= 600) marks.bold = true;
+  else if (weight === 'normal' || (weight !== '' && Number(weight) < 600)) marks.bold = false;
+
   if (style.fontStyle === 'italic') marks.italic = true;
-  if (style.textDecorationLine?.includes('underline')) marks.underline = true;
-  if (style.textDecorationLine?.includes('line-through')) marks.strike = true;
+  else if (style.fontStyle === 'normal') marks.italic = false;
+
+  // Browsers write the shorthand as often as the longhand, and Word writes both.
+  const decoration = `${style.textDecorationLine ?? ''} ${style.textDecoration ?? ''}`;
+  if (decoration.includes('underline')) marks.underline = true;
+  else if (decoration.includes('none')) marks.underline = false;
+  if (decoration.includes('line-through')) marks.strike = true;
+
+  // <font color> is what execCommand('foreColor') emits when the browser is not
+  // in CSS mode, and what a paste from an older editor arrives as. Without this
+  // the colour is applied in the DOM and then silently dropped on commit.
+  if (element.tagName === 'FONT') {
+    const attribute = normaliseColor(element.getAttribute('color') ?? '');
+    if (attribute) marks.color = attribute;
+  }
 
   const color = normaliseColor(style.color ?? '');
   if (color) marks.color = color;
@@ -142,9 +168,9 @@ export function htmlToRuns(html: string): Run[] {
 
 const cleanMarks = (marks: Marks): Partial<Run> => {
   const out: Partial<Run> = {};
-  if (marks.bold) out.bold = true;
-  if (marks.italic) out.italic = true;
-  if (marks.underline) out.underline = true;
+  if (marks.bold !== undefined) out.bold = marks.bold;
+  if (marks.italic !== undefined) out.italic = marks.italic;
+  if (marks.underline !== undefined) out.underline = marks.underline;
   if (marks.strike) out.strike = true;
   if (marks.color) out.color = marks.color;
   if (marks.highlight) out.highlight = marks.highlight;
@@ -154,9 +180,11 @@ const cleanMarks = (marks: Marks): Partial<Run> => {
 };
 
 const sameStyle = (a: Run, b: Run) =>
-  !!a.bold === !!b.bold &&
-  !!a.italic === !!b.italic &&
-  !!a.underline === !!b.underline &&
+  // Compared exactly, not loosely: a run that says "not bold" is not the same
+  // as one that says nothing, and merging them would lose the override.
+  a.bold === b.bold &&
+  a.italic === b.italic &&
+  a.underline === b.underline &&
   !!a.strike === !!b.strike &&
   a.color === b.color &&
   a.highlight === b.highlight &&

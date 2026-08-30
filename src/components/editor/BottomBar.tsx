@@ -24,7 +24,7 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
   };
 
   return (
-    <footer className="flex h-11 shrink-0 items-center gap-2 border-t border-line bg-panel px-3">
+    <footer className="flex h-11 shrink-0 items-center gap-2 overflow-x-auto border-t border-line bg-panel px-3">
       <div className="flex items-center gap-1">
         <IconButton
           label="Previous page"
@@ -43,7 +43,7 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
               store.getState().setActivePage(clamp(Number(e.target.value) - 1, 0, pages - 1))
             }
             aria-label="Page number"
-            className="h-7 w-11 rounded-md border border-line px-1.5 text-center text-[12px] focus:border-question-hue focus:outline-none"
+            className="touch-target h-7 w-11 rounded-md border border-line px-1.5 text-center text-[12px] focus:border-question-hue focus:outline-none"
           />
           <span className="whitespace-nowrap">of {pages}</span>
         </span>
@@ -61,7 +61,7 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
       <button
         type="button"
         onClick={() => store.getState().addPage(activePage)}
-        className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-[12px] text-ink-soft transition-colors hover:bg-slate-100"
+        className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-[12px] text-ink-soft transition-colors hover:bg-[#f1ede6]"
       >
         <Plus size={13} />
         <span className={compact ? 'sr-only' : undefined}>Add page</span>

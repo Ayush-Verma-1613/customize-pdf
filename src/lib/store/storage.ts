@@ -21,10 +21,20 @@ export interface DocumentSummary {
   createdAt: string;
 }
 
+/**
+ * The database keeps its original name on purpose. It is an identifier, not a
+ * label: renaming it would open a second, empty database and every document
+ * anybody had already saved would vanish from the app while still sitting on
+ * their disk. Renaming it properly means copying the records across, which is a
+ * migration to do deliberately - not a side effect of changing the wordmark.
+ */
 const DB_NAME = 'paperforge';
 const DB_VERSION = 1;
 const STORE = 'documents';
-const RECOVERY_KEY = 'paperforge:recovery';
+
+const RECOVERY_KEY = 'docraft:recovery';
+/** Read as well, so a crash before the rename can still be recovered from. */
+const LEGACY_RECOVERY_KEY = 'paperforge:recovery';
 
 const summarise = (doc: PaperDoc, pageCount?: number): DocumentSummary => ({
   id: doc.id,
@@ -159,7 +169,8 @@ export function writeRecovery(doc: PaperDoc): void {
 
 export function readRecovery(): RecoveryEntry | null {
   try {
-    const raw = localStorage.getItem(RECOVERY_KEY);
+    const raw =
+      localStorage.getItem(RECOVERY_KEY) ?? localStorage.getItem(LEGACY_RECOVERY_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as RecoveryEntry;
     const doc = normaliseDocument(parsed.doc);
@@ -172,6 +183,7 @@ export function readRecovery(): RecoveryEntry | null {
 export function clearRecovery(): void {
   try {
     localStorage.removeItem(RECOVERY_KEY);
+    localStorage.removeItem(LEGACY_RECOVERY_KEY);
   } catch {
     // Nothing to do; recovery is best-effort by design.
   }
@@ -186,7 +198,7 @@ export function downloadDocumentFile(doc: PaperDoc): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${doc.title.replace(/[^\w\s-]+/g, '').trim().replace(/\s+/g, '-') || 'document'}.paperforge.json`;
+  link.download = `${doc.title.replace(/[^\w\s-]+/g, '').trim().replace(/\s+/g, '-') || 'document'}.docraft.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();

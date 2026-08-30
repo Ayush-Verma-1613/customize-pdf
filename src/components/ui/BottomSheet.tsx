@@ -78,7 +78,7 @@ export function BottomSheet({
             type="button"
             aria-label="Close panel"
             onClick={onClose}
-            className="mt-3 ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-slate-100"
+            className="mt-3 ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-[#f1ede6]"
           >
             <X size={16} />
           </button>

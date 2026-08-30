@@ -12,7 +12,7 @@ import { htmlToBlocks } from './html';
 /**
  * Importing somebody else's file.
  *
- * A Paperforge document comes back exactly as it left. Everything else - a PDF,
+ * A Docraft document comes back exactly as it left. Everything else - a PDF,
  * a Word file, a text file - is read for its *text and structure*, then run
  * through the same parser the paste box uses, so it arrives as real editable
  * questions, headings and tables rather than a picture of a document.
@@ -23,6 +23,11 @@ export interface ImportResult {
   /** How faithful the import was, so the UI can set expectations. */
   fidelity: 'exact' | 'structured' | 'text-only';
   note?: string;
+  /**
+   * A template the content looks like it wants, offered afterwards rather than
+   * applied. An import should arrive as what it is; restyling is a decision.
+   */
+  suggestedTemplate?: string;
 }
 
 export class ImportError extends Error {}
@@ -50,7 +55,7 @@ export async function importFile(file: File): Promise<ImportResult> {
     );
   }
   throw new ImportError(
-    `Paperforge cannot read a .${ext} file. It accepts .json, .pdf, .docx, .txt, .md, .html and images.`,
+    `Docraft cannot read a .${ext} file. It accepts .json, .pdf, .docx, .txt, .md, .html and images.`,
   );
 }
 
@@ -58,7 +63,7 @@ const titleFrom = (fileName: string) =>
   fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Imported document';
 
 /* ------------------------------------------------------------------ *
- * Paperforge's own format
+ * Docraft's own format
  * ------------------------------------------------------------------ */
 
 async function fromJson(file: File): Promise<ImportResult> {
@@ -70,7 +75,7 @@ async function fromJson(file: File): Promise<ImportResult> {
   }
   const doc = normaliseDocument(parsed);
   if (!doc) {
-    throw new ImportError('That JSON file is not a Paperforge document.');
+    throw new ImportError('That JSON file is not a Docraft document.');
   }
   return { doc: reKey(doc), fidelity: 'exact' };
 }
@@ -94,7 +99,7 @@ async function fromPdf(file: File): Promise<ImportResult> {
     return {
       doc: reKey(embedded),
       fidelity: 'exact',
-      note: 'This PDF was made in Paperforge, so the original editable document came back with it.',
+      note: 'This PDF was made in Docraft, so the original editable document came back with it.',
     };
   }
 
@@ -111,7 +116,7 @@ async function fromPdf(file: File): Promise<ImportResult> {
   };
 }
 
-/** Pull an embedded Paperforge source out of a PDF's attachment table. */
+/** Pull an embedded Docraft source out of a PDF's attachment table. */
 async function extractAttachedSource(bytes: Uint8Array): Promise<PaperDoc | null> {
   try {
     const { PDFDocument, PDFName, PDFRawStream } = await import('pdf-lib');
@@ -230,7 +235,7 @@ async function fromDocx(file: File): Promise<ImportResult> {
 function fromHtml(html: string, fileName: string): ImportResult {
   const blocks = htmlToBlocks(html);
   if (!blocks.length) throw new ImportError('Nothing readable was found in that file.');
-  return { doc: documentFrom(blocks, titleFrom(fileName)), fidelity: 'structured' };
+  return { ...documentFrom(blocks, titleFrom(fileName)), fidelity: 'structured' };
 }
 
 function fromPlainText(text: string, fileName: string): ImportResult {
@@ -242,7 +247,7 @@ function fromParsedText(text: string, title: string): ImportResult {
   const parsed = parseContent(text);
   if (!parsed.blocks.length) throw new ImportError('Nothing readable was found in that file.');
   return {
-    doc: documentFrom(parsed.blocks, title, parsed.fields),
+    ...documentFrom(parsed.blocks, title, parsed.fields),
     fidelity: 'structured',
   };
 }
@@ -278,23 +283,35 @@ async function fromImage(file: File): Promise<ImportResult> {
  * ------------------------------------------------------------------ */
 
 /**
- * Imported content lands in a question paper when it looks like one, and in a
- * plain document otherwise - so a pasted exam keeps its masthead and marks
- * column without a teacher having to pick a template first.
+ * Imported content arrives as itself.
+ *
+ * Dropping somebody's file straight into a question-paper template used to give
+ * them back a document with a masthead and instruction box they never asked
+ * for, which reads as the import having gone wrong. So the content lands plain,
+ * and if it looks like a paper that is offered as a suggestion instead - one
+ * click, taken or ignored.
  */
 function documentFrom(
   blocks: Block[],
   title: string,
   fields: Record<string, string> = {},
-): PaperDoc {
+): { doc: PaperDoc; suggestedTemplate?: string } {
   const looksLikeAPaper =
     blocks.some((b) => b.type === 'question') || Object.keys(fields).length > 1;
 
-  const doc = buildFromTemplate(looksLikeAPaper ? 'question-paper-classic' : 'blank', {
-    title,
-    fields,
-    body: blocks,
-  });
+  const doc = buildFromTemplate('blank', { title, fields, body: blocks });
   doc.id = uid('doc');
-  return doc;
+  // The template did not ask for them, but a later restyle will want them.
+  doc.fields = { ...fields };
+  // Nothing here is the template's invention, so nothing may be regenerated away.
+  doc.flow = doc.flow.map((block) => {
+    const { generated: _generated, ...rest } = block;
+    void _generated;
+    return rest as Block;
+  });
+
+  return {
+    doc,
+    suggestedTemplate: looksLikeAPaper ? 'question-paper-classic' : undefined,
+  };
 }

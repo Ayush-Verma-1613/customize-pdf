@@ -113,37 +113,62 @@ const approxMeasurer = new ApproxMeasurer();
 export const measurer: Measurer =
   typeof document === 'undefined' ? approxMeasurer : canvasMeasurer;
 
-let fontsPromise: Promise<void> | null = null;
+/** The outcome of registering the shipped faces. `failed` names the ones that never arrived. */
+export interface FontLoadResult {
+  ok: boolean;
+  failed: string[];
+}
+
+const ALL_LOADED: FontLoadResult = { ok: true, failed: [] };
+
+let fontsPromise: Promise<FontLoadResult> | null = null;
+
+async function loadAllFaces(): Promise<FontLoadResult> {
+  const faces: { name: string; job: Promise<unknown> }[] = [];
+  for (const [family, styles] of Object.entries(FONT_FILES)) {
+    for (const [style, url] of Object.entries(styles)) {
+      const face = new FontFace(family, `url(${url})`, {
+        weight: style.includes('Bold') ? '700' : '400',
+        style: style.includes('Italic') ? 'italic' : 'normal',
+        display: 'block',
+      });
+      faces.push({
+        name: `${family}-${style}`,
+        job: face.load().then((f) => document.fonts.add(f)),
+      });
+    }
+  }
+
+  const settled = await Promise.allSettled(faces.map((f) => f.job));
+  await document.fonts.ready;
+
+  const failed = faces.filter((_, i) => settled[i].status === 'rejected').map((f) => f.name);
+  if (failed.length) return { ok: false, failed };
+
+  canvasMeasurer.markLoaded();
+  return ALL_LOADED;
+}
 
 /**
- * Registers every shipped face with the browser and resolves once they are all
- * available for measurement. Layout must not be trusted before this settles.
+ * Registers every shipped face with the browser and reports whether they all
+ * arrived. Layout must not be trusted before this settles.
+ *
+ * A face that fails to load is reported rather than swallowed. Canvas would
+ * quietly measure it against a system fallback, so the widths would stop
+ * matching the TTF the exporter embeds - and the wrapping on screen would stop
+ * matching the wrapping on paper. Until every face is in, the measurer stays
+ * "not ready", which is what keeps `LaidOutDoc.exact` honest.
  */
-export function ensureFontsLoaded(): Promise<void> {
-  if (typeof document === 'undefined') return Promise.resolve();
-  if (fontsPromise) return fontsPromise;
-
-  fontsPromise = (async () => {
-    const jobs: Promise<unknown>[] = [];
-    for (const [family, styles] of Object.entries(FONT_FILES)) {
-      for (const [style, url] of Object.entries(styles)) {
-        const face = new FontFace(family, `url(${url})`, {
-          weight: style.includes('Bold') ? '700' : '400',
-          style: style.includes('Italic') ? 'italic' : 'normal',
-          display: 'block',
-        });
-        jobs.push(
-          face.load().then((f) => {
-            document.fonts.add(f);
-          }),
-        );
-      }
-    }
-    await Promise.allSettled(jobs);
-    await document.fonts.ready;
-    canvasMeasurer.markLoaded();
-  })();
-
+export function ensureFontsLoaded(): Promise<FontLoadResult> {
+  if (typeof document === 'undefined') return Promise.resolve(ALL_LOADED);
+  if (!fontsPromise) {
+    fontsPromise = loadAllFaces().then((result) => {
+      // Usually a dropped connection, so let the next document load try again
+      // instead of caching the failure for the rest of the session.
+      if (!result.ok) fontsPromise = null;
+      return result;
+    });
+  }
   return fontsPromise;
 }
 

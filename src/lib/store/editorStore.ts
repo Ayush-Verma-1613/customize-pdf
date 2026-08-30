@@ -2,9 +2,10 @@
 
 import { create } from 'zustand';
 import { layoutDocument } from '@/lib/engine/layout';
-import { ensureFontsLoaded } from '@/lib/engine/measure';
+import { ensureFontsLoaded, type FontLoadResult } from '@/lib/engine/measure';
 import type { LaidOutDoc } from '@/lib/engine/types';
 import { cloneBlock, cloneOverlay, createBlock, createDocument, createOverlay } from '@/lib/model/factory';
+import { buildFromTemplate, carriedContent } from '@/lib/templates';
 import type {
   Block,
   BlockType,
@@ -82,6 +83,8 @@ export interface EditorState {
   showGrid: boolean;
   snapEnabled: boolean;
   fontsReady: boolean;
+  /** Set when a shipped face failed to load, so the UI can stop promising exact output. */
+  fontProblem: string | null;
   saveState: SaveState;
   lastSavedAt: string | null;
   errorMessage: string | null;
@@ -92,7 +95,7 @@ export interface EditorState {
 
   /* lifecycle */
   load: (doc: PaperDoc) => void;
-  markFontsReady: () => void;
+  markFontsReady: (result: FontLoadResult) => void;
   relayout: () => void;
   setSaveState: (state: SaveState, message?: string) => void;
 
@@ -143,10 +146,14 @@ export interface EditorState {
   breakBefore: (blockId: string) => void;
   setPageSetup: (patch: Partial<PageSetup>) => void;
   setTheme: (patch: Partial<Theme>) => void;
+  applyTemplate: (templateId: string, keepContent: boolean, variantId?: string) => void;
+  /** Rebuild the current template with a different body layout. */
+  applyVariant: (variantId: string) => void;
 
   /* clipboard */
   copySelection: () => void;
   pasteClipboard: () => void;
+  pasteAt: (index: number) => void;
   deleteSelection: () => void;
 }
 
@@ -213,6 +220,7 @@ export const useEditor = create<EditorState>((set, get) => {
     showGrid: false,
     snapEnabled: true,
     fontsReady: false,
+    fontProblem: null,
     saveState: 'idle',
     lastSavedAt: null,
     errorMessage: null,
@@ -232,12 +240,22 @@ export const useEditor = create<EditorState>((set, get) => {
         saveState: 'idle',
         errorMessage: null,
       });
-      void ensureFontsLoaded().then(() => get().markFontsReady());
+      void ensureFontsLoaded().then((result) => get().markFontsReady(result));
     },
 
-    markFontsReady: () => {
+    markFontsReady: (result) => {
+      if (!result.ok) {
+        // Leave fontsReady false: the layout is still measured against system
+        // fallbacks, so it must not be advertised as matching the export.
+        set({
+          fontProblem: `${result.failed.length} font ${
+            result.failed.length === 1 ? 'file' : 'files'
+          } could not be loaded, so line breaks may shift in the exported PDF.`,
+        });
+        return;
+      }
       if (get().fontsReady) return;
-      set({ fontsReady: true, ...withLayout(get().doc, get().activePage) });
+      set({ fontsReady: true, fontProblem: null, ...withLayout(get().doc, get().activePage) });
     },
 
     relayout: () => set(withLayout(get().doc, get().activePage)),
@@ -323,7 +341,23 @@ export const useEditor = create<EditorState>((set, get) => {
     },
 
     clearSelection: () => set({ selection: { kind: 'none' }, editingId: null }),
-    beginEditing: (id) => set({ editingId: id }),
+
+    /**
+     * Only things made of words can be typed into. Accepting anything else set
+     * an editingId that the inline editor then refused to render, which hid the
+     * element's toolbar and stopped it taking clicks - so a line, once
+     * double-clicked, could no longer be selected or deleted.
+     */
+    beginEditing: (id) => {
+      if (id === null) {
+        set({ editingId: null });
+        return;
+      }
+      const { doc } = get();
+      const target =
+        doc.flow.find((b) => b.id === id) ?? doc.overlays.find((o) => o.id === id) ?? null;
+      set({ editingId: hasEditableText(target) ? id : null });
+    },
 
     addBlock: (type, at) => {
       const block = createBlock(type);
@@ -345,6 +379,9 @@ export const useEditor = create<EditorState>((set, get) => {
         if (index < 0) return;
         const result = patch(draft.flow[index]);
         if (result) draft.flow[index] = result;
+        // Touching a block the template wrote makes it the user's, so a later
+        // restyle carries it across instead of regenerating over the top.
+        delete draft.flow[index].generated;
       }, options ?? { coalesce: `block:${id}` });
     },
 
@@ -361,6 +398,8 @@ export const useEditor = create<EditorState>((set, get) => {
         const index = draft.flow.findIndex((b) => b.id === id);
         if (index < 0) return;
         const copy = cloneBlock(draft.flow[index]);
+        // A copy somebody asked for is theirs, whatever it was copied from.
+        delete copy.generated;
         newId = copy.id;
         draft.flow.splice(index + 1, 0, copy);
       }, { label: 'Duplicate element' });
@@ -371,6 +410,8 @@ export const useEditor = create<EditorState>((set, get) => {
       get().edit((draft) => {
         if (from < 0 || from >= draft.flow.length) return;
         const [moved] = draft.flow.splice(from, 1);
+        // Deliberately placing a block is a claim on it.
+        delete moved.generated;
         draft.flow.splice(clamp(to, 0, draft.flow.length), 0, moved);
       }, { label: 'Reorder content' });
     },
@@ -507,6 +548,51 @@ export const useEditor = create<EditorState>((set, get) => {
       }, { coalesce: 'theme' });
     },
 
+    /**
+     * Restyling replaces the page setup, typography and furniture while the
+     * words the teacher wrote come across untouched. Identity and anything
+     * placed by hand are preserved, so a restyle is never a fresh start.
+     */
+    applyTemplate: (templateId, keepContent, variantId) => {
+      const { doc } = get();
+      get().edit(() => {
+        const next = buildFromTemplate(templateId, {
+          title: doc.title,
+          fields: doc.fields,
+          body: keepContent ? carriedContent(doc.flow) : [],
+          variant: variantId,
+        });
+        return { ...next, id: doc.id, createdAt: doc.createdAt, overlays: doc.overlays };
+      }, { label: 'Apply template' });
+      set({ selection: { kind: 'none' } });
+    },
+
+    /**
+     * Swapping the body layout rebuilds the flow and nothing else.
+     *
+     * Restyling replaces a whole design; choosing a different arrangement of
+     * the same one must not. The fonts, margins, header and numbering somebody
+     * has set are theirs, and going from one CV layout to another is no reason
+     * to hand them back the template's defaults.
+     */
+    applyVariant: (variantId) => {
+      const { doc } = get();
+      const templateId = doc.templateId;
+      if (!templateId || doc.variantId === variantId) return;
+
+      get().edit((draft) => {
+        const rebuilt = buildFromTemplate(templateId, {
+          title: draft.title,
+          fields: draft.fields,
+          body: carriedContent(draft.flow),
+          variant: variantId,
+        });
+        return { ...draft, flow: rebuilt.flow, variantId };
+      }, { label: 'Body layout' });
+
+      set({ selection: { kind: 'none' } });
+    },
+
     copySelection: () => {
       const { selection, doc } = get();
       if (selection.kind === 'block') {
@@ -545,6 +631,18 @@ export const useEditor = create<EditorState>((set, get) => {
       }
     },
 
+    /** Paste into an exact slot in the flow, for the in-between insert points. */
+    pasteAt: (index) => {
+      const { clipboard } = get();
+      if (!clipboard) return;
+      if (clipboard.blocks.length) {
+        get().insertBlocks(clipboard.blocks.map(cloneBlock), index);
+        return;
+      }
+      // Drawn elements have no place in the flow, so they land on the page as usual.
+      get().pasteClipboard();
+    },
+
     deleteSelection: () => {
       const { selection } = get();
       if (selection.kind === 'block') {
@@ -560,6 +658,21 @@ export const useEditor = create<EditorState>((set, get) => {
     },
   };
 });
+
+/**
+ * Whether this element holds runs the inline editor can put a caret into.
+ * Mirrors `runsOf` in InlineTextEditor, which is the thing that has to render.
+ */
+export function hasEditableText(target: Block | Overlay | null | undefined): boolean {
+  if (!target) return false;
+  if ('kind' in target) return target.kind === 'text';
+  return (
+    target.type === 'heading' ||
+    target.type === 'paragraph' ||
+    target.type === 'question' ||
+    target.type === 'section'
+  );
+}
 
 /** Where a new block should land given the current selection. */
 function insertionPoint(doc: PaperDoc, selection: Selection): number {

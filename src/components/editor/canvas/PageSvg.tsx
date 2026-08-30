@@ -143,8 +143,8 @@ function ImageContent({
           width={round(frame.width)}
           height={round(frame.height)}
           rx={frame.radius || 3}
-          fill="#f1f5f9"
-          stroke="#cbd5e1"
+          fill="#f6f3ee"
+          stroke="#ded9d1"
           strokeWidth={0.75}
           strokeDasharray="4 3"
         />
@@ -154,7 +154,7 @@ function ImageContent({
           textAnchor="middle"
           fontFamily="Inter, sans-serif"
           fontSize={Math.min(10, frame.height / 4)}
-          fill="#94a3b8"
+          fill="#a9a49b"
         >
           Add a picture
         </text>
@@ -460,7 +460,7 @@ function PageSvgInner({ page, showGuides, showGrid, className, style }: PageSvgP
         <>
           <defs>
             <pattern id={gridId} width={18} height={18} patternUnits="userSpaceOnUse">
-              <path d="M 18 0 L 0 0 0 18" fill="none" stroke="#e2e8f0" strokeWidth={0.4} />
+              <path d="M 18 0 L 0 0 0 18" fill="none" stroke="#e7e2da" strokeWidth={0.4} />
             </pattern>
           </defs>
           <rect x={0} y={0} width={page.width} height={page.height} fill={`url(#${gridId})`} />

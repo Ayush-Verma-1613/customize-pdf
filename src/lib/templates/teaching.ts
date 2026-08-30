@@ -20,8 +20,21 @@ import {
 const SCHOOL_FIELDS = [
   { key: 'school', label: 'School name', placeholder: 'Green Valley Public School' },
   { key: 'exam', label: 'Examination', placeholder: 'Half Yearly Examination 2025-26' },
-  { key: 'subject', label: 'Subject', placeholder: 'Science' },
-  { key: 'class', label: 'Class', placeholder: 'VIII' },
+  {
+    key: 'subject',
+    label: 'Subject',
+    placeholder: 'Science',
+    options: [
+      'Science', 'Mathematics', 'English', 'Social Science', 'Hindi',
+      'Computer Science', 'Physics', 'Chemistry', 'Biology',
+    ],
+  },
+  {
+    key: 'class',
+    label: 'Class',
+    placeholder: 'VIII',
+    options: ['V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'],
+  },
   { key: 'time', label: 'Time allowed', placeholder: '3 Hours' },
   { key: 'maxMarks', label: 'Maximum marks', placeholder: '80' },
 ];
@@ -426,6 +439,7 @@ export const TEACHING_TEMPLATES: TemplateDef[] = [
     description:
       'The familiar bordered exam layout: centred school masthead, subject and marks strip, boxed instructions, auto-numbered questions with a marks column.',
     preview: ['GREEN VALLEY PUBLIC SCHOOL', 'Subject: Science      Time: 3 Hours'],
+    badge: 'Most popular',
     accent: '#1d4ed8',
     fields: SCHOOL_FIELDS,
     acceptsContent: true,
@@ -438,6 +452,7 @@ export const TEACHING_TEMPLATES: TemplateDef[] = [
     description:
       'A cleaner, left-aligned take with a metadata strip and generous spacing. Good for printed handouts and for sharing as a PDF.',
     preview: ['HALF YEARLY EXAMINATION', 'SUBJECT   CLASS   TIME   MAX MARKS'],
+    badge: 'Modern look',
     accent: '#0f172a',
     fields: SCHOOL_FIELDS,
     acceptsContent: true,
@@ -450,6 +465,7 @@ export const TEACHING_TEMPLATES: TemplateDef[] = [
     description:
       'Adds a full cover page with candidate details and instructions, then continues with the classic question layout.',
     preview: ['Cover page + candidate details', 'Questions start on page 2'],
+    badge: 'With cover page',
     accent: '#7c3aed',
     fields: SCHOOL_FIELDS,
     acceptsContent: true,
@@ -462,6 +478,7 @@ export const TEACHING_TEMPLATES: TemplateDef[] = [
     description:
       'Practice sheet with a name/class/date strip, exercises and ruled answer space.',
     preview: ['Name: ____  Class: ____  Date: ____', '1. Exercise one'],
+    badge: 'Practice & learn',
     accent: '#0d9488',
     fields: [
       { key: 'subject', label: 'Subject', placeholder: 'Mathematics' },
@@ -477,6 +494,7 @@ export const TEACHING_TEMPLATES: TemplateDef[] = [
     description:
       'Objective, submission guidelines, task list and a marking-scheme table.',
     preview: ['Objective · Guidelines · Tasks', 'Marking scheme table'],
+    badge: 'Structured',
     accent: '#ea580c',
     fields: [
       { key: 'title', label: 'Assignment title', placeholder: 'Assignment 1 — Algebra' },
@@ -494,6 +512,7 @@ export const TEACHING_TEMPLATES: TemplateDef[] = [
     category: 'Teaching',
     description: 'Ruled answer pages with a candidate detail strip at the top.',
     preview: ['Name / Roll No / Class / Date', '26 ruled lines per page'],
+    badge: 'Ruled pages',
     accent: '#4f46e5',
     fields: [
       { key: 'school', label: 'School name', placeholder: 'Green Valley Public School' },

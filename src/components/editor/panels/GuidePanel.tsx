@@ -115,7 +115,7 @@ export function GuidePanel() {
             ['==highlight==', 'Highlighted text'],
           ].map(([pattern, meaning]) => (
             <div key={pattern} className="flex items-baseline gap-2">
-              <dt className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10.5px] text-ink-soft">
+              <dt className="shrink-0 rounded bg-[#f1ede6] px-1.5 py-0.5 font-mono text-[10.5px] text-ink-soft">
                 {pattern}
               </dt>
               <dd className="min-w-0 flex-1 text-[11px] text-faint">{meaning}</dd>
@@ -151,7 +151,7 @@ export function GuidePanel() {
               ]
           ).map(([action, meaning]) => (
             <div key={action} className="flex items-baseline gap-2">
-              <dt className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-medium text-ink-soft">
+              <dt className="shrink-0 rounded bg-[#f1ede6] px-1.5 py-0.5 text-[10.5px] font-medium text-ink-soft">
                 {action}
               </dt>
               <dd className="min-w-0 flex-1 text-[11px] text-faint">{meaning}</dd>
@@ -206,7 +206,7 @@ export function GuidePanel() {
           <li>
             <strong className="text-ink-soft">Import</strong> on the home screen
             opens a Word file (.docx), a PDF, a text file, a web page or a
-            Paperforge document.
+            Docraft document.
           </li>
           <li>
             A Word file keeps its headings, lists and tables. A PDF gives up its
@@ -214,7 +214,7 @@ export function GuidePanel() {
             before you print it.
           </li>
           <li>
-            A PDF that Paperforge made comes back <em>exactly</em> as it was:
+            A PDF that Docraft made comes back <em>exactly</em> as it was:
             the editable document travels inside the file.
           </li>
           <li>

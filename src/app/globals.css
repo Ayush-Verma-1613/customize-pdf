@@ -25,16 +25,23 @@
 
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* The studio's display face, with the shipped Lora behind it so the
+     wordmark still has a serif to fall back to offline. */
+  --font-serif: var(--font-display), 'Lora', Georgia, 'Times New Roman', serif;
 
-  /* Shell neutrals */
-  --color-ink: #0b1220;
-  --color-ink-soft: #334155;
-  --color-muted: #64748b;
-  --color-faint: #94a3b8;
-  --color-line: #e2e8f0;
-  --color-line-soft: #eef2f7;
-  --color-panel: #ffffff;
-  --color-shell: #f6f7fb;
+  /* Shell neutrals. Warm greys rather than blue ones, so the editor sits in
+     the same light as the workspace it was opened from. */
+  --color-ink: #252525;
+  --color-ink-soft: #6f6f6f;
+  --color-muted: #8b8b8b;
+  --color-faint: #a9a49b;
+  --color-line: #e7e2da;
+  --color-line-soft: #efeae3;
+  /* Not solid white: the panels let the decorated ground behind them show
+     through. Kept high, because unlike the workspace panels these carry dense
+     controls and small type that has to stay crisp. */
+  --color-panel: rgba(255, 255, 255, 0.9);
+  --color-shell: #f7f6f3;
 
   /* Semantic element hues: each family of thing the user works with owns one.
      Structure is amber, prose is indigo, data is cyan, media is teal,
@@ -43,8 +50,10 @@
   --color-text-wash: #eef2ff;
   --color-structure-hue: #b45309;
   --color-structure-wash: #fef3c7;
-  --color-question-hue: #1d4ed8;
-  --color-question-wash: #dbeafe;
+  /* The interactive accent - selection, focus, the active tab - and the hue
+     questions carry in the outline. Burnt orange, as on the home screen. */
+  --color-question-hue: #c95f18;
+  --color-question-wash: #fff0e5;
   --color-data-hue: #0e7490;
   --color-data-wash: #cffafe;
   --color-media-hue: #0f766e;
@@ -53,8 +62,25 @@
   --color-draw-wash: #ffe4e6;
   --color-danger: #dc2626;
   --color-danger-wash: #fee2e2;
-  --color-success: #059669;
-  --color-success-wash: #d1fae5;
+  --color-success: #3ba66b;
+  --color-success-wash: #ddf1e5;
+
+  /* The studio workspace: a warm, editorial palette kept apart from the editor
+     chrome above, so neither can drift into the other by accident. */
+  --color-forge-bg: #f7f6f3;
+  --color-forge-accent: #c95f18;
+  --color-forge-accent-soft: #e9823b;
+  --color-forge-wash: #fff0e5;
+  --color-forge-cream: #f8f5ef;
+  --color-forge-ink: #252525;
+  --color-forge-ink-soft: #6f6f6f;
+  --color-forge-muted: #8b8b8b;
+  --color-forge-line: #e7e2da;
+  --color-forge-field: #dedad3;
+  --color-forge-dark: #1f1f1f;
+  --color-forge-green: #3ba66b;
+  --color-forge-paper: #fffefb;
+  --color-forge-connector: #ded9d1;
 }
 
 :root {
@@ -74,42 +100,45 @@ body {
   overscroll-behavior: none;
 }
 
-/* The document canvas backdrop: a soft, slightly warm depth so white pages
-   read as paper sitting on a surface rather than as holes in the UI. */
+/* The document canvas backdrop: the same warm ground and the same three
+   lights as the workspace, so opening a document does not feel like moving to
+   a different product. */
 .canvas-backdrop {
-  background:
-    radial-gradient(120% 80% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0) 55%),
-    linear-gradient(180deg, #eef1f6 0%, #e6eaf1 60%, #e2e6ee 100%);
+  background-color: #f2efe9;
+  background-image:
+    radial-gradient(58% 42% at 42% -6%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 62%),
+    radial-gradient(38% 46% at 104% 34%, rgba(233, 130, 59, 0.2) 0%, rgba(233, 130, 59, 0) 68%),
+    radial-gradient(34% 34% at -6% 92%, rgba(201, 95, 24, 0.14) 0%, rgba(201, 95, 24, 0) 70%);
 }
 
 .paper-shadow {
   box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.06),
-    0 8px 24px -8px rgba(15, 23, 42, 0.16),
-    0 0 0 1px rgba(15, 23, 42, 0.06);
+    0 1px 2px rgba(40, 30, 20, 0.06),
+    0 12px 34px -10px rgba(40, 30, 20, 0.16),
+    0 0 0 1px rgba(40, 30, 20, 0.05);
 }
 
 .panel-shadow {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 2px rgba(40, 30, 20, 0.04);
 }
 
 /* Scrollbars stay out of the way of the document. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: #ded9d1 transparent;
 }
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #ded9d1;
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: content-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #c4bcb0;
   background-clip: content-box;
 }
 
@@ -123,6 +152,19 @@ body {
 
 .inline-editor:focus {
   outline: none;
+}
+
+/**
+ * A finger is about 9mm across; a mouse pointer is one pixel. Controls that are
+ * comfortable with a pointer are a poke in the dark with a thumb, so on a touch
+ * screen they grow to the 44px everybody's guidelines agree on - and stay
+ * exactly as they were for anyone using a mouse.
+ */
+@media (pointer: coarse) {
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 @keyframes fade-rise {
@@ -144,4 +186,298 @@ body {
   body {
     background: #fff;
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * The studio workspace
+ * ------------------------------------------------------------------ */
+
+/**
+ * The decorative layer, and the one rule that matters about it: it is fixed,
+ * it never takes a pointer event, and it sits behind everything. The body's
+ * own background paints behind even this, so the warm ground still shows on a
+ * page that has not loaded its interface yet.
+ */
+.background-decoration {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--color-forge-accent);
+
+  /* Two greens for foliage and two clays for the pot - warm-leaning greens, so
+     they belong beside the burnt orange rather than arguing with it.
+     Deep enough to survive a dimmed screen: at the previous values the plant
+     landed at 1.2:1 against the cream, which is not a drawing, it is a rumour. */
+  --foliage: #7e9a6a;
+  --foliage-deep: #4c6636;
+  --foliage-shade: #6b8759;
+  --clay: #c97f45;
+  --clay-deep: #a25c28;
+}
+
+.background-decoration > * {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Top left: a soft beige-into-orange bloom, and a small column of dots. */
+.gradient-top-left {
+  top: -16%;
+  left: -14%;
+  width: 46vw;
+  height: 46vw;
+  max-width: 640px;
+  max-height: 640px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 42% 42%,
+    rgba(243, 212, 178, 0.68) 0%,
+    rgba(233, 148, 80, 0.28) 40%,
+    rgba(233, 148, 80, 0) 70%
+  );
+  filter: blur(25px);
+}
+
+/* The dot fields are masked so they dissolve rather than stopping at an edge. */
+.dots-left,
+.dots-bottom-right {
+  background-image: radial-gradient(circle, rgba(201, 95, 24, 0.4) 1.5px, transparent 1.5px);
+  background-size: 15px 15px;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 74%);
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 74%);
+}
+
+.dots-left {
+  top: 14%;
+  left: 0.5%;
+  width: 84px;
+  height: 210px;
+}
+
+.dots-bottom-right {
+  right: 1%;
+  bottom: 12%;
+  width: 96px;
+  height: 180px;
+}
+
+/* Top right: one leaf and a family of thin arcs sweeping down the edge. */
+.leaf-top-right {
+  top: 3%;
+  right: 1.5%;
+  width: 136px;
+  height: 148px;
+  opacity: 0.92;
+}
+
+.leaf-blade {
+  fill: var(--foliage);
+  fill-opacity: 0.86;
+  stroke: var(--foliage-deep);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.leaf-vein {
+  fill: none;
+  stroke: var(--foliage-deep);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.leaf-vein-fine {
+  stroke-width: 1.2;
+  stroke-opacity: 0.85;
+}
+
+.curved-lines-right {
+  top: 12%;
+  right: -2%;
+  width: 156px;
+  height: 358px;
+  opacity: 0.4;
+}
+
+.arc {
+  fill: none;
+  stroke: currentColor;
+}
+
+/* Bottom left: a plant leaning in, deliberately cropped by the window edge. */
+.plant-bottom-left {
+  bottom: -6%;
+  left: -3%;
+  width: 196px;
+  height: 226px;
+  opacity: 0.95;
+}
+
+/* The leaves behind the stem are a shade darker, which is all the depth a
+   drawing this small needs. */
+.leaf-back {
+  fill: var(--foliage-shade);
+  fill-opacity: 0.82;
+  stroke: var(--foliage-deep);
+  stroke-width: 1.45;
+  stroke-linejoin: round;
+}
+
+.leaf-front {
+  fill: var(--foliage);
+  fill-opacity: 0.9;
+  stroke: var(--foliage-deep);
+  stroke-width: 1.45;
+  stroke-linejoin: round;
+}
+
+.plant-stem {
+  fill: none;
+  stroke: var(--foliage-deep);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+.pot-body {
+  fill: var(--clay);
+  fill-opacity: 0.94;
+  stroke: var(--clay-deep);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+}
+
+.pot-rim {
+  fill: var(--clay-deep);
+  fill-opacity: 0.95;
+  stroke: var(--clay-deep);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+}
+
+/* Bottom right: the large peach circle the whole composition settles onto. */
+.gradient-bottom-right {
+  right: -18%;
+  bottom: -20%;
+  width: 58vw;
+  height: 58vw;
+  max-width: 780px;
+  max-height: 780px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(233, 130, 59, 0.35) 0%,
+    rgba(233, 130, 59, 0.16) 42%,
+    rgba(233, 130, 59, 0) 72%
+  );
+  filter: blur(28px);
+}
+
+/**
+ * On a phone the interface covers the whole screen, so the decoration is only
+ * ever seen through it. It is drawn a little stronger and pulled towards the
+ * corners, where the interface is thinnest, rather than being switched off.
+ */
+@media (max-width: 639px) {
+  .gradient-top-left {
+    top: -12%;
+    left: -26%;
+    width: 78vw;
+    height: 78vw;
+  }
+  .gradient-bottom-right {
+    right: -30%;
+    bottom: -14%;
+    width: 96vw;
+    height: 96vw;
+  }
+  .dots-left {
+    top: 9%;
+    width: 62px;
+    height: 130px;
+  }
+  .dots-bottom-right {
+    width: 66px;
+    height: 120px;
+    bottom: 16%;
+  }
+  .leaf-top-right {
+    width: 95px;
+    height: 103px;
+    opacity: 0.94;
+  }
+  .curved-lines-right {
+    width: 99px;
+    height: 246px;
+    opacity: 0.44;
+  }
+  .plant-bottom-left {
+    width: 132px;
+    height: 154px;
+    bottom: -4%;
+    left: -7%;
+    opacity: 0.98;
+  }
+}
+
+/* A blurred blob is a cheap effect but not a free one; anybody who has asked
+   for less movement and less decoration gets the quiet version. */
+@media (prefers-reduced-motion: reduce) {
+  .curved-lines-right {
+    opacity: 0.2;
+  }
+}
+
+/**
+ * The bars at the top and the bottom of the screen.
+ *
+ * Translucent rather than solid, so the decoration behind still reads through
+ * them, with a blur so the text on them stays crisp over whatever it happens to
+ * be sitting on.
+ */
+.forge-bar {
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.72);
+  border-color: var(--color-forge-line);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.forge-panel {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--color-forge-line);
+  box-shadow: 0 1px 2px rgba(40, 30, 20, 0.03);
+}
+
+/* The sheet itself: a close, soft contact shadow plus a wider ambient one, so
+   it reads as paper resting on the surface rather than a floating rectangle. */
+.forge-paper {
+  background: var(--color-forge-paper);
+  box-shadow:
+    0 1px 2px rgba(40, 30, 20, 0.06),
+    0 12px 34px -10px rgba(40, 30, 20, 0.16),
+    0 0 0 1px rgba(40, 30, 20, 0.05);
+}
+
+.forge-float {
+  background: #ffffff;
+  box-shadow:
+    0 2px 6px rgba(40, 30, 20, 0.08),
+    0 12px 28px -8px rgba(40, 30, 20, 0.18);
+}
+
+/* The studio scrollers stay out of the way until they are needed. */
+.forge-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #ded9d1 transparent;
+}
+.forge-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.forge-scroll::-webkit-scrollbar-thumb {
+  background: #ded9d1;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }

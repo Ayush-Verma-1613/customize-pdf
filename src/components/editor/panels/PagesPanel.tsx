@@ -64,7 +64,7 @@ export function PagesPanel() {
                   'block w-full overflow-hidden rounded-md border-2 bg-white transition-colors',
                   index === activePage
                     ? 'border-question-hue'
-                    : 'border-line hover:border-slate-300',
+                    : 'border-line hover:border-[#dcd6cc]',
                   overIndex === index && dragIndex !== null && 'border-draw-hue',
                 )}
                 style={{ height: page.height * scale }}
@@ -93,7 +93,7 @@ export function PagesPanel() {
                     title="Duplicate page"
                     aria-label="Duplicate page"
                     onClick={() => store.getState().duplicatePageAt(index)}
-                    className="flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-slate-100"
+                    className="flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-[#f1ede6]"
                   >
                     <Copy size={11} />
                   </button>

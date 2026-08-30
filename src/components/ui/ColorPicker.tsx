@@ -42,12 +42,12 @@ export function ColorPicker({
         title={label}
         aria-label={label}
         onClick={() => setOpen((o) => !o)}
-        className="flex h-8 w-full items-center gap-2 rounded-lg border border-line bg-white px-2 text-[12px] text-ink-soft transition-colors hover:border-slate-300"
+        className="flex h-8 w-full items-center gap-2 rounded-lg border border-line bg-white px-2 text-[12px] text-ink-soft transition-colors hover:border-[#dcd6cc]"
       >
         <span
           className={cx(
             'h-4 w-4 shrink-0 rounded border border-black/10',
-            empty && 'bg-[repeating-linear-gradient(45deg,#fff,#fff_3px,#e2e8f0_3px,#e2e8f0_6px)]',
+            empty && 'bg-[repeating-linear-gradient(45deg,#fff,#fff_3px,#e7e2da_3px,#e7e2da_6px)]',
           )}
           style={empty ? undefined : { background: value }}
         />
@@ -123,7 +123,7 @@ export function ColorPicker({
                   onChange(undefined);
                   setOpen(false);
                 }}
-                className="flex h-7 w-7 items-center justify-center rounded border border-line text-muted hover:bg-slate-50"
+                className="flex h-7 w-7 items-center justify-center rounded border border-line text-muted hover:bg-[#f8f5ef]"
               >
                 <Ban size={13} />
               </button>

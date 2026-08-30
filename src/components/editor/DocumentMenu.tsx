@@ -105,6 +105,11 @@ export function DocumentMenu({ compact }: { compact?: boolean }) {
             </>
           ) : null}
 
+          <p className="mx-2 mb-1 rounded-lg bg-[#f8f5ef] px-2.5 py-2 text-[11px] leading-relaxed text-muted">
+            This document is saved in this browser only - we keep no copy of it.
+            Export a PDF, or save a copy, to keep it or move it elsewhere.
+          </p>
+
           <MenuItem
             icon={<FileDown size={14} />}
             label="Save a copy to my computer"
@@ -177,7 +182,7 @@ function MenuItem({
       onClick={onClick}
       className={cx(
         'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
-        danger ? 'text-danger hover:bg-danger-wash' : 'text-ink-soft hover:bg-slate-100',
+        danger ? 'text-danger hover:bg-danger-wash' : 'text-ink-soft hover:bg-[#f1ede6]',
       )}
     >
       <span className="mt-0.5 shrink-0">{icon}</span>
@@ -205,14 +210,14 @@ function MenuToggle({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-ink-soft transition-colors hover:bg-slate-100"
+      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-ink-soft transition-colors hover:bg-[#f1ede6]"
     >
       <span className="shrink-0">{icon}</span>
       <span className="flex-1 text-[13px]">{label}</span>
       <span
         className={cx(
           'relative h-4.5 w-8 shrink-0 rounded-full transition-colors',
-          active ? 'bg-ink' : 'bg-slate-300',
+          active ? 'bg-ink' : 'bg-[#dcd6cc]',
         )}
       >
         <span

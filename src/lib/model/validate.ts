@@ -16,6 +16,7 @@ export function normaliseDocument(input: unknown): PaperDoc | null {
     id: raw.id,
     title: typeof raw.title === 'string' && raw.title ? raw.title.slice(0, 200) : 'Untitled document',
     templateId: typeof raw.templateId === 'string' ? raw.templateId : undefined,
+    variantId: typeof raw.variantId === 'string' ? raw.variantId : undefined,
     page: { ...defaultPageSetup(), ...(raw.page ?? {}) },
     theme: { ...defaultTheme(), ...(raw.theme ?? {}) },
     numbering: { ...defaultNumbering(), ...(raw.numbering ?? {}) },

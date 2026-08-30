@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   FileText,
   HelpCircle,
@@ -16,6 +16,10 @@ import { useCompactLayout } from '@/lib/utils/useMedia';
 import { cx } from '@/lib/utils/cx';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CanvasArea } from './canvas/CanvasArea';
+import { SelectionToolbar } from './canvas/SelectionToolbar';
+import { BackgroundDecoration } from '@/components/workspace/layout/BackgroundDecoration';
+import { CommandLayer } from './CommandLayer';
+import { ImportNotice } from './ImportNotice';
 import { BottomBar } from './BottomBar';
 import { TopToolbar } from './TopToolbar';
 import { ContentPanel } from './panels/ContentPanel';
@@ -69,7 +73,7 @@ const TAB_TITLE: Record<Tab, string> = {
   templates: 'Templates',
   pages: 'Pages',
   document: 'Document settings',
-  guide: 'How to use Paperforge',
+  guide: 'How to use Docraft',
   properties: 'Properties',
 };
 
@@ -90,63 +94,73 @@ function DesktopShell() {
 
   const [leftOpen, setLeftOpen] = useState(true);
 
+  // A command that needs a whole panel reveals it rather than failing quietly.
+  const openPanel = useCallback((next: SidePanel) => {
+    useEditor.getState().setPanel(next);
+    setLeftOpen(true);
+  }, []);
+
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-shell">
-      <TopToolbar />
+    <CommandLayer onOpenPanel={openPanel}>
+      <BackgroundDecoration />
+      <div className="relative flex h-dvh flex-col overflow-hidden">
+        <TopToolbar />
+        <ImportNotice />
 
-      <div className="flex min-h-0 flex-1">
-        {mode === 'design' ? (
-          <>
-            <nav className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-line bg-panel py-2">
-              {TABS.map((tab) => {
-                const active = panel === tab.id && leftOpen;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    title={tab.label}
-                    aria-label={tab.label}
-                    aria-pressed={active}
-                    onClick={() => {
-                      if (panel === tab.id) setLeftOpen((open) => !open);
-                      else {
-                        useEditor.getState().setPanel(tab.id as SidePanel);
-                        setLeftOpen(true);
-                      }
-                    }}
-                    className={cx(
-                      'flex h-11 w-11 flex-col items-center justify-center gap-0.5 rounded-xl transition-colors',
-                      active ? 'bg-ink text-white' : 'text-muted hover:bg-slate-100 hover:text-ink',
-                    )}
-                  >
-                    {tab.icon}
-                    <span className="text-[9px] font-medium">{tab.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
+        <div className="flex min-h-0 flex-1">
+          {mode === 'design' ? (
+            <>
+              <nav className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-line bg-panel py-2">
+                {TABS.map((tab) => {
+                  const active = panel === tab.id && leftOpen;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      title={tab.label}
+                      aria-label={tab.label}
+                      aria-pressed={active}
+                      onClick={() => {
+                        if (panel === tab.id) setLeftOpen((open) => !open);
+                        else {
+                          useEditor.getState().setPanel(tab.id as SidePanel);
+                          setLeftOpen(true);
+                        }
+                      }}
+                      className={cx(
+                        'flex h-11 w-11 flex-col items-center justify-center gap-0.5 rounded-xl transition-colors',
+                        active ? 'bg-ink text-white' : 'text-muted hover:bg-[#f1ede6] hover:text-ink',
+                      )}
+                    >
+                      {tab.icon}
+                      <span className="text-[9px] font-medium">{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
 
-            {leftOpen ? (
-              <aside className="w-[290px] shrink-0 overflow-y-auto border-r border-line bg-panel">
-                {panelFor(panel)}
-              </aside>
-            ) : null}
-          </>
-        ) : null}
+              {leftOpen ? (
+                <aside className="w-[290px] shrink-0 overflow-y-auto border-r border-line bg-panel">
+                  {panelFor(panel)}
+                </aside>
+              ) : null}
+            </>
+          ) : null}
 
-        <main className="min-w-0 flex-1">
-          <CanvasArea />
-        </main>
+          <main className="min-w-0 flex-1">
+            <CanvasArea />
+          </main>
 
-        {mode === 'design' ? (
-          <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-line bg-panel">
-            <RightPanel />
-          </aside>
-        ) : null}
+          {mode === 'design' ? (
+            <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-line bg-panel">
+              <RightPanel />
+            </aside>
+          ) : null}
+        </div>
+
+        <BottomBar />
       </div>
-
-      <BottomBar />
-    </div>
+    </CommandLayer>
   );
 }
 
@@ -157,9 +171,12 @@ function DesktopShell() {
 function CompactShell() {
   const mode = useEditor((s) => s.mode);
   const selection = useEditor((s) => s.selection);
+  const editingId = useEditor((s) => s.editingId);
   const [sheet, setSheet] = useState<Tab | null>(null);
   useAutosave();
   useShortcuts();
+
+  const openPanel = useCallback((next: SidePanel) => setSheet(next), []);
 
   // Selecting something on the page is the moment you want its properties, but
   // opening the sheet automatically would cover the thing you just tapped.
@@ -170,62 +187,72 @@ function CompactShell() {
   const openSheet = mode === 'preview' ? null : sheet;
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-shell">
-      <TopToolbar compact />
+    <CommandLayer onOpenPanel={openPanel}>
+      <BackgroundDecoration />
+      <div className="relative flex h-dvh flex-col overflow-hidden">
+        <TopToolbar compact />
+        <ImportNotice />
 
-      <main className="min-h-0 flex-1">
-        <CanvasArea />
-      </main>
+        <main className="min-h-0 flex-1">
+          <CanvasArea />
+        </main>
 
-      <BottomBar compact />
+        {/* On a phone the element's own controls dock above the tab bar: a
+            floating bar would cover the very thing being edited. */}
+        {mode === 'design' && hasSelection && !openSheet && !editingId ? (
+          <SelectionToolbar variant="docked" onOpenInspector={() => setSheet('properties')} />
+        ) : null}
 
-      {mode === 'design' ? (
-        <nav
-          className="flex shrink-0 items-stretch overflow-x-auto border-t border-line bg-panel pb-[env(safe-area-inset-bottom)]"
-          aria-label="Editor panels"
-        >
-          {MOBILE_TABS.map((tab) => {
-            const active = openSheet === tab.id;
-            const flagged = tab.id === 'properties' && hasSelection && !active;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                aria-label={tab.label}
-                aria-pressed={active}
-                onClick={() => setSheet(active ? null : tab.id)}
-                className={cx(
-                  'relative flex min-w-[50px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 transition-colors',
-                  active ? 'text-ink' : 'text-muted',
-                )}
-              >
-                <span
+        <BottomBar compact />
+
+        {mode === 'design' ? (
+          <nav
+            className="flex shrink-0 items-stretch overflow-x-auto border-t border-line bg-panel pb-[env(safe-area-inset-bottom)]"
+            aria-label="Editor panels"
+          >
+            {MOBILE_TABS.map((tab) => {
+              const active = openSheet === tab.id;
+              const flagged = tab.id === 'properties' && hasSelection && !active;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  aria-label={tab.label}
+                  aria-pressed={active}
+                  onClick={() => setSheet(active ? null : tab.id)}
                   className={cx(
-                    'flex h-7 w-9 items-center justify-center rounded-lg transition-colors',
-                    active && 'bg-ink text-white',
+                    'relative flex min-w-[50px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 transition-colors',
+                    active ? 'text-ink' : 'text-muted',
                   )}
                 >
-                  {tab.icon}
-                </span>
-                <span className="text-[9px] font-medium">{tab.label}</span>
-                {flagged ? (
-                  <span className="absolute top-1.5 right-1/2 h-1.5 w-1.5 translate-x-4 rounded-full bg-question-hue" />
-                ) : null}
-              </button>
-            );
-          })}
-        </nav>
-      ) : null}
+                  <span
+                    className={cx(
+                      'flex h-7 w-9 items-center justify-center rounded-lg transition-colors',
+                      active && 'bg-ink text-white',
+                    )}
+                  >
+                    {tab.icon}
+                  </span>
+                  <span className="text-[9px] font-medium">{tab.label}</span>
+                  {flagged ? (
+                    <span className="absolute top-1.5 right-1/2 h-1.5 w-1.5 translate-x-4 rounded-full bg-question-hue" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </nav>
+        ) : null}
 
-      <BottomSheet
-        key={openSheet ?? 'none'}
-        open={openSheet !== null}
-        title={openSheet ? TAB_TITLE[openSheet] : ''}
-        onClose={() => setSheet(null)}
-      >
-        {openSheet ? panelFor(openSheet) : null}
-      </BottomSheet>
-    </div>
+        <BottomSheet
+          key={openSheet ?? 'none'}
+          open={openSheet !== null}
+          title={openSheet ? TAB_TITLE[openSheet] : ''}
+          onClose={() => setSheet(null)}
+        >
+          {openSheet ? panelFor(openSheet) : null}
+        </BottomSheet>
+      </div>
+    </CommandLayer>
   );
 }
 

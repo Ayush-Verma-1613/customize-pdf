@@ -10,11 +10,11 @@ type ButtonSize = 'sm' | 'md' | 'lg';
 
 const TONES: Record<ButtonTone, string> = {
   neutral:
-    'bg-white text-ink border border-line hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40',
+    'bg-white text-ink border border-line hover:bg-[#f8f5ef] hover:border-[#dcd6cc] disabled:opacity-40',
   primary:
-    'bg-ink text-white border border-ink hover:bg-slate-800 disabled:opacity-40 shadow-sm',
-  ghost: 'text-ink-soft hover:bg-slate-100 border border-transparent disabled:opacity-40',
-  subtle: 'bg-slate-100 text-ink-soft hover:bg-slate-200 border border-transparent',
+    'bg-ink text-white border border-ink hover:bg-[#1a1a1a] disabled:opacity-40 shadow-sm',
+  ghost: 'text-ink-soft hover:bg-[#f1ede6] border border-transparent disabled:opacity-40',
+  subtle: 'bg-[#f1ede6] text-ink-soft hover:bg-[#e5dfd5] border border-transparent',
   danger:
     'bg-danger-wash text-danger border border-transparent hover:bg-red-200 disabled:opacity-40',
 };
@@ -73,14 +73,14 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       aria-label={label}
       aria-pressed={active}
       className={cx(
-        'inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+        'touch-target inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
         'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-question-hue',
         'disabled:opacity-30 disabled:cursor-not-allowed',
         active
           ? 'bg-ink text-white'
           : tone === 'danger'
             ? 'text-danger hover:bg-danger-wash'
-            : 'text-ink-soft hover:bg-slate-100',
+            : 'text-ink-soft hover:bg-[#f1ede6]',
         className,
       )}
       {...rest}
@@ -180,7 +180,7 @@ export function Select<T extends string>({
       className={cx(inputClass, 'appearance-none bg-white pr-7', className)}
       style={{
         backgroundImage:
-          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%2394a3b8' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23a9a49b' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
         backgroundRepeat: 'no-repeat',
         backgroundPosition: 'right 8px center',
       }}
@@ -235,7 +235,7 @@ export function Segmented<T extends string>({
   className?: string;
 }) {
   return (
-    <div className={cx('inline-flex rounded-lg bg-slate-100 p-0.5', className)}>
+    <div className={cx('inline-flex rounded-lg bg-[#f1ede6] p-0.5', className)}>
       {options.map((o) => (
         <button
           key={o.value}
@@ -243,7 +243,7 @@ export function Segmented<T extends string>({
           title={o.title}
           onClick={() => onChange(o.value)}
           className={cx(
-            'flex h-7 min-w-7 flex-1 items-center justify-center rounded-[6px] px-2 text-[12px] font-medium transition-colors',
+            'touch-target flex h-7 min-w-7 flex-1 items-center justify-center rounded-[6px] px-2 text-[12px] font-medium transition-colors',
             value === o.value
               ? 'bg-white text-ink shadow-sm'
               : 'text-muted hover:text-ink-soft',
@@ -280,7 +280,7 @@ export function Toggle({
       <span
         className={cx(
           'relative h-5 w-9 shrink-0 rounded-full transition-colors',
-          checked ? 'bg-ink' : 'bg-slate-300',
+          checked ? 'bg-ink' : 'bg-[#dcd6cc]',
         )}
       >
         <span
@@ -320,7 +320,7 @@ export function PanelSection({
 
 export function EmptyHint({ children }: { children: ReactNode }) {
   return (
-    <p className="rounded-lg bg-slate-50 px-3 py-2.5 text-[12px] leading-relaxed text-muted">
+    <p className="rounded-lg bg-[#f8f5ef] px-3 py-2.5 text-[12px] leading-relaxed text-muted">
       {children}
     </p>
   );

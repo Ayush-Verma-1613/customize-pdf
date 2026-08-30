@@ -574,7 +574,7 @@ function QuestionEditor({ block }: { block: Extract<Block, { type: 'question' }>
       <Field label="Sub-parts">
         <div className="grid gap-1.5">
           {(block.parts ?? []).map((part, index) => (
-            <div key={part.id} className="rounded-lg border border-line bg-slate-50/60 p-2">
+            <div key={part.id} className="rounded-lg border border-line bg-[#f8f5ef]/60 p-2">
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-[11px] font-medium text-muted">Part {index + 1}</span>
                 <IconButton
@@ -852,7 +852,7 @@ function TableEditor({ block }: { block: TableBlock }) {
           <table className="w-full border-collapse text-[11px]">
             <tbody>
               {block.rows.map((row, r) => (
-                <tr key={row.id} className={row.isHeader ? 'bg-slate-50' : undefined}>
+                <tr key={row.id} className={row.isHeader ? 'bg-[#f8f5ef]' : undefined}>
                   {row.cells.map((cell, c) => (
                     <td key={cell.id} className="border border-line-soft p-0">
                       <input

@@ -1,18 +1,22 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Copy, Lock, Pencil, Scissors, Trash2 } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import type { LaidOutPage } from '@/lib/engine/types';
 import type { Overlay } from '@/lib/model/types';
 import { useEditor } from '@/lib/store/editorStore';
 import { useCoarsePointer, useCompactLayout } from '@/lib/utils/useMedia';
 import { cx } from '@/lib/utils/cx';
 import { clamp, type Rect } from '@/lib/utils/geom';
+import { useCommands } from '../CommandLayer';
+import { InsertPoints } from './InsertPoints';
 import { PageSvg } from './PageSvg';
+import { SelectionToolbar } from './SelectionToolbar';
 import {
   angleTo,
   HANDLES,
   hitBoxesFor,
+  insertSlots,
   resizeRect,
   snapRect,
   type HandleId,
@@ -54,6 +58,7 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
   const editingId = useEditor((s) => s.editingId);
   const store = useEditor;
 
+  const { openContextMenu, host } = useCommands();
   const compact = useCompactLayout();
   const coarse = useCoarsePointer();
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -61,6 +66,7 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
   const [guides, setGuides] = useState<SnapGuide[]>([]);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [hoverSlot, setHoverSlot] = useState<string | null>(null);
 
   const boxes = useMemo(() => hitBoxesFor(page, doc.overlays), [page, doc.overlays]);
   const interactive = mode === 'design';
@@ -115,9 +121,36 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
     };
   };
 
+  /**
+   * Which insertion gap the pointer is near.
+   *
+   * Reading it off the pointer rather than giving every gap its own hit area
+   * keeps the strips out of the way: a full-width band above the blocks would
+   * swallow clicks on their edges and kill drag-to-reorder.
+   */
+  const trackSlotHover = (event: React.PointerEvent) => {
+    if (!slots.length) {
+      if (hoverSlot) setHoverSlot(null);
+      return;
+    }
+    const point = toPagePoint(event);
+    const tolerance = Math.max(3, 11 / zoom);
+    const near = slots.find(
+      (slot) =>
+        slot.kind === 'gap' &&
+        Math.abs(point.y - slot.y) <= Math.max(tolerance, slot.gap / 2) &&
+        point.x >= slot.x - 4 &&
+        point.x <= slot.x + slot.width + 4,
+    );
+    setHoverSlot(near?.key ?? null);
+  };
+
   const onPointerMove = (event: React.PointerEvent) => {
     const drag = dragRef.current;
-    if (!drag) return;
+    if (!drag) {
+      trackSlotHover(event);
+      return;
+    }
     const point = toPagePoint(event);
     const dx = point.x - drag.startPointer.x;
     const dy = point.y - drag.startPointer.y;
@@ -147,7 +180,16 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
     if (drag.mode === 'resize' && drag.handle) {
       const overlay = overlayById(drag.id);
       const keepAspect = event.shiftKey || overlay?.kind === 'image';
-      const next = resizeRect(drag.startRect, drag.handle, dx, dy, keepAspect);
+      // A line is a pair of points, not a box: forcing a minimum height on a
+      // horizontal one bends it the moment you drag either end.
+      const next = resizeRect(
+        drag.startRect,
+        drag.handle,
+        dx,
+        dy,
+        keepAspect,
+        overlay?.kind === 'line' ? 0 : undefined,
+      );
       const snapped = snapRect(next, page, others, snapEnabled && !event.altKey);
       setGuides(snapped.guides);
       store.getState().updateOverlay(
@@ -212,7 +254,57 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
       ? boxes.find((b) => b.kind === 'flow' && b.id === selection.ids[0])
       : undefined;
 
+  /** The one element whose toolbar belongs on this page, flow or drawn. */
+  const toolbarBox =
+    selectedFlowBox ??
+    (selection.kind === 'overlay' && selection.ids.length === 1
+      ? boxes.find((b) => b.kind === 'overlay' && b.id === selection.ids[0])
+      : undefined);
+
+  const flowIndexOf = (id: string) => doc.flow.findIndex((b) => b.id === id);
+  const selectedIndex =
+    selection.kind === 'block' && selection.ids.length === 1
+      ? flowIndexOf(selection.ids[0])
+      : -1;
+
+  const slots =
+    interactive && !editingId
+      ? insertSlots(page, boxes, doc.flow, {
+          selectedIndex,
+          isLastPage: page.index === laid.pages.length - 1,
+          blockPages: laid.blockPages,
+          columns: doc.page.columns,
+          columnGap: doc.page.columnGap,
+        })
+      : [];
+
+  /**
+   * The running header and footer are drawn by the page, not by anything in the
+   * flow, so clicking them used to do nothing at all - leaving "Page 1 of 1"
+   * looking like a fixed part of the paper. They get their own target instead,
+   * which opens the settings that own them.
+   */
+  const masterBands = (['header', 'footer'] as const)
+    .map((which) => {
+      const frames = page.masterFrames.filter((f) => f.source.id === which);
+      if (!frames.length) return null;
+      const left = Math.min(...frames.map((f) => f.x));
+      const top = Math.min(...frames.map((f) => f.y));
+      const right = Math.max(...frames.map((f) => f.x + f.width));
+      const bottom = Math.max(...frames.map((f) => f.y + f.height));
+      return { which, x: left, y: top, width: right - left, height: Math.max(bottom - top, 10) };
+    })
+    .filter((band): band is NonNullable<typeof band> => band !== null);
+
   const px = (value: number) => value * zoom;
+
+  /**
+   * A horizontal line is zero points tall, which leaves a target only a few
+   * pixels high once the page is zoomed to fit - too fine to hit with a
+   * trackpad, and impossible with a finger. Thin elements get an invisible
+   * margin so they can be picked up; the outline still shows their true size.
+   */
+  const MIN_HIT = 14;
 
   return (
     <div
@@ -237,13 +329,24 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
+          onPointerLeave={() => setHoverSlot(null)}
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) store.getState().clearSelection();
+          }}
+          onContextMenu={(e) => {
+            // Right-clicking bare page keeps whatever was selected, so the menu
+            // still offers something useful rather than going empty.
+            e.preventDefault();
+            openContextMenu(e.clientX, e.clientY);
           }}
         >
           {boxes.map((box) => {
             const isSelected = selectedIds.includes(box.id);
             const isEditing = editingId === box.id;
+            const width = px(box.width);
+            const height = px(box.height);
+            const padX = Math.max(0, (MIN_HIT - width) / 2);
+            const padY = Math.max(0, (MIN_HIT - height) / 2);
             return (
               <div
                 key={`${box.kind}-${box.id}`}
@@ -253,10 +356,10 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
                   isEditing && 'pointer-events-none',
                 )}
                 style={{
-                  left: px(box.x),
-                  top: px(box.y),
-                  width: px(box.width),
-                  height: px(box.height),
+                  left: px(box.x) - padX,
+                  top: px(box.y) - padY,
+                  width: width + padX * 2,
+                  height: height + padY * 2,
                   transform: box.rotation ? `rotate(${box.rotation}deg)` : undefined,
                   // A finger on an unselected element should scroll the page;
                   // once it is selected, the same finger drags it instead.
@@ -265,6 +368,13 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
                 onPointerEnter={() => setHovered(box.id)}
                 onPointerLeave={() => setHovered((h) => (h === box.id ? null : h))}
                 onPointerDown={(e) => {
+                  if (e.button === 2) {
+                    // Right-click selects what is under the pointer first, so
+                    // the menu that follows is about the thing you aimed at.
+                    if (box.kind === 'overlay') store.getState().selectOverlay(box.id);
+                    else store.getState().selectBlock(box.id);
+                    return;
+                  }
                   if (e.button !== 0) return;
                   if (box.kind === 'overlay') store.getState().selectOverlay(box.id, e.shiftKey);
                   else store.getState().selectBlock(box.id, e.shiftKey);
@@ -276,14 +386,15 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
                 }}
               >
                 <div
+                  style={{ position: 'absolute', left: padX, top: padY, width, height }}
                   className={cx(
-                    'pointer-events-none h-full w-full rounded-[2px] transition-colors',
+                    'pointer-events-none rounded-[2px] transition-colors',
                     isSelected
                       ? box.kind === 'overlay'
                         ? 'outline outline-[1.5px] outline-question-hue'
                         : 'bg-question-hue/[0.06] outline outline-[1.5px] outline-question-hue'
                       : hovered === box.id
-                        ? 'outline outline-1 outline-dashed outline-slate-300'
+                        ? 'outline outline-1 outline-dashed outline-[#dcd6cc]'
                         : '',
                   )}
                 />
@@ -323,14 +434,40 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
             />
           ))}
 
-          {selectedFlowBox ? (
-            <FlowBlockToolbar
-              box={selectedFlowBox}
+          {toolbarBox && !compact && !editingId ? (
+            <SelectionToolbar
+              variant="floating"
+              box={toolbarBox}
               zoom={zoom}
-              pageWidth={page.width}
-              compact={compact}
+              pageHeight={page.height}
             />
           ) : null}
+
+          {slots.length ? (
+            <InsertPoints
+              slots={slots}
+              zoom={zoom}
+              hoverKey={hoverSlot}
+              emptyDocument={doc.flow.length === 0}
+            />
+          ) : null}
+
+          {masterBands.map((band) => (
+            <button
+              key={band.which}
+              type="button"
+              title={`${band.which === 'footer' ? 'Footer' : 'Header'} - click to change or remove it`}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => host.openPanel('document')}
+              className="absolute rounded border border-transparent transition-colors hover:border-dashed hover:border-question-hue/50 hover:bg-question-wash/30"
+              style={{
+                left: px(band.x) - 4,
+                top: px(band.y) - 3,
+                width: px(band.width) + 8,
+                height: px(band.height) + 6,
+              }}
+            />
+          ))}
 
           {guides.map((guide, i) => (
             <div
@@ -427,97 +564,6 @@ function OverlayHandles({
           {Math.round(overlay.rotation)}°
         </span>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * Quick actions for the selected flow block. It lives in the page gutter rather
- * than floating above the block: a flow block spans the full text column, so
- * anything hovering over it would hide the element the teacher just read.
- */
-function FlowBlockToolbar({
-  box,
-  zoom,
-  pageWidth,
-  compact,
-}: {
-  box: HitBox;
-  zoom: number;
-  pageWidth: number;
-  /** On a phone there is no gutter, so the bar sits under the block instead. */
-  compact: boolean;
-}) {
-  const store = useEditor;
-  const flow = useEditor((s) => s.doc.flow);
-  const index = flow.findIndex((b) => b.id === box.id);
-  const px = (v: number) => v * zoom;
-
-  const actions = [
-    {
-      icon: <Pencil size={13} />,
-      label: 'Edit text',
-      run: () => store.getState().beginEditing(box.id),
-    },
-    {
-      icon: <ArrowUp size={13} />,
-      label: 'Move up',
-      disabled: index <= 0,
-      run: () => store.getState().moveBlock(index, index - 1),
-    },
-    {
-      icon: <ArrowDown size={13} />,
-      label: 'Move down',
-      disabled: index < 0 || index >= flow.length - 1,
-      run: () => store.getState().moveBlock(index, index + 1),
-    },
-    {
-      icon: <Scissors size={13} />,
-      label: 'Page break before',
-      run: () => store.getState().breakBefore(box.id),
-    },
-    {
-      icon: <Copy size={13} />,
-      label: 'Duplicate',
-      run: () => store.getState().duplicateBlockById(box.id),
-    },
-    {
-      icon: <Trash2 size={13} />,
-      label: 'Delete',
-      danger: true,
-      run: () => store.getState().removeBlock(box.id),
-    },
-  ];
-
-  return (
-    <div
-      className={cx(
-        'animate-rise absolute z-20 flex items-center gap-0.5 rounded-lg border border-line bg-white p-1 shadow-lg',
-        compact ? 'flex-row' : 'flex-col',
-      )}
-      style={
-        compact
-          ? { left: px(box.x), top: px(box.y + box.height) + 6 }
-          : { left: px(pageWidth) + 6, top: Math.max(0, px(box.y) - 4) }
-      }
-      onPointerDown={(e) => e.stopPropagation()}
-    >
-      {actions.map((action) => (
-        <button
-          key={action.label}
-          type="button"
-          title={action.label}
-          aria-label={action.label}
-          disabled={action.disabled}
-          onClick={action.run}
-          className={cx(
-            'flex h-7 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-30',
-            action.danger ? 'text-danger hover:bg-danger-wash' : 'text-ink-soft hover:bg-slate-100',
-          )}
-        >
-          {action.icon}
-        </button>
-      ))}
     </div>
   );
 }

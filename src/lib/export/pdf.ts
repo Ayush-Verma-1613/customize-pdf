@@ -483,8 +483,8 @@ export async function buildPdf(
   pdf.registerFontkit(pdfFontkit as unknown as Parameters<typeof pdf.registerFontkit>[0]);
 
   pdf.setTitle(doc.title);
-  pdf.setProducer('Paperforge');
-  pdf.setCreator('Paperforge document builder');
+  pdf.setProducer('Docraft');
+  pdf.setCreator('Docraft document builder');
   pdf.setCreationDate(new Date(doc.createdAt));
   pdf.setModificationDate(new Date());
   if (doc.fields.subject) pdf.setSubject(doc.fields.subject);
@@ -519,9 +519,9 @@ export async function buildPdf(
 
   if (options.embedSource !== false) {
     const json = new TextEncoder().encode(JSON.stringify(doc));
-    await pdf.attach(json, `${safeName(doc.title)}.paperforge.json`, {
+    await pdf.attach(json, `${safeName(doc.title)}.docraft.json`, {
       mimeType: 'application/json',
-      description: 'Editable Paperforge source for this document',
+      description: 'Editable Docraft source for this document',
       creationDate: new Date(doc.createdAt),
       modificationDate: new Date(),
     });

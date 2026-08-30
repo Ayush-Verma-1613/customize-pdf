@@ -1,5 +1,5 @@
 {
-  "name": "paperforge",
+  "name": "docraft",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "fontkit": "^2.0.4",
+    "framer-motion": "^13.1.1",
     "lucide-react": "^1.34.0",
     "mammoth": "^1.12.1",
     "nanoid": "^6.0.1",

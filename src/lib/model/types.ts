@@ -121,6 +121,12 @@ interface BlockBase {
   locked?: boolean;
   /** Collapsed in the outline panel. */
   note?: string;
+  /**
+   * Written by a template rather than by the person using it, and therefore
+   * safe to regenerate. Cleared the moment anybody edits the block, because
+   * from then on the words are theirs.
+   */
+  generated?: boolean;
 }
 
 export interface HeadingBlock extends BlockBase {
@@ -439,6 +445,8 @@ export interface PaperDoc {
   id: string;
   title: string;
   templateId?: string;
+  /** Which of the template's body layouts built this document. */
+  variantId?: string;
   page: PageSetup;
   theme: Theme;
   numbering: NumberingConfig;

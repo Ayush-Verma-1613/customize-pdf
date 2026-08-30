@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Paperforge — question papers and documents, formatted for you',
+  title: 'Docraft — question papers and documents, formatted for you',
   description:
-    'Type your content, pick a template, and Paperforge lays out a print-ready multi-page document. Built for teachers writing question papers, worksheets and notices.',
+    'Type your content, pick a template, and Docraft lays out a print-ready multi-page document. Built for teachers writing question papers, worksheets and notices.',
 };
 
 export const viewport: Viewport = {

@@ -439,6 +439,7 @@ export const GENERAL_TEMPLATES: TemplateDef[] = [
     category: 'School admin',
     description: 'An empty A4 page with sensible margins. Everything else is up to you.',
     preview: ['A4 · 48pt margins', 'No masthead, no furniture'],
+    badge: 'Start clean',
     accent: '#64748b',
     fields: [],
     acceptsContent: true,
@@ -451,6 +452,7 @@ export const GENERAL_TEMPLATES: TemplateDef[] = [
     description:
       'Bordered circular with reference number, date, subject line and a signature block.',
     preview: ['NOTICE · Ref + Date', 'Body · Principal signature'],
+    badge: 'Circular',
     accent: '#b91c1c',
     fields: [
       { key: 'school', label: 'School name', placeholder: 'Green Valley Public School' },
@@ -469,6 +471,7 @@ export const GENERAL_TEMPLATES: TemplateDef[] = [
     category: 'School admin',
     description: 'Landscape certificate with a double gold border and two signature lines.',
     preview: ['Landscape · double border', 'Recipient · reason · signatures'],
+    badge: 'Landscape',
     accent: '#b8860b',
     fields: [
       { key: 'school', label: 'School name', placeholder: 'Green Valley Public School' },
@@ -487,6 +490,7 @@ export const GENERAL_TEMPLATES: TemplateDef[] = [
     category: 'School admin',
     description: 'Structured field tables with a declaration and signature strip.',
     preview: ['Student details table', 'Guardian details · declaration'],
+    badge: 'Fill-in fields',
     accent: '#0891b2',
     fields: [
       { key: 'org', label: 'Organisation', placeholder: 'Green Valley Public School' },
@@ -501,6 +505,7 @@ export const GENERAL_TEMPLATES: TemplateDef[] = [
     category: 'Business',
     description: 'Summary-first report layout with running header and section headings.',
     preview: ['Summary · Findings', 'Recommendations'],
+    badge: 'Summary first',
     accent: '#0f766e',
     fields: [
       { key: 'org', label: 'Organisation', placeholder: 'Green Valley Public School' },
@@ -517,6 +522,7 @@ export const GENERAL_TEMPLATES: TemplateDef[] = [
     category: 'Business',
     description: 'Line-item table with totals, billing block and payment terms.',
     preview: ['Bill to · line items', 'Subtotal · tax · total due'],
+    badge: 'Line items',
     accent: '#1d4ed8',
     fields: [
       { key: 'org', label: 'Your business', placeholder: 'Azureline Studio' },

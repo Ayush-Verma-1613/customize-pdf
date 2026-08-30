@@ -190,7 +190,33 @@ export function wrapRuns(runs: Run[], base: BaseTextStyle, opts: WrapOptions): L
       current.tokens.push(token);
       current.width += token.width;
     } else {
+      /**
+       * Formatting half a word - bolding "quick" inside "quickly" - splits it
+       * into two runs, which arrive here as adjacent word tokens with no space
+       * between them. Breaking the line there would hyphenate the word, so the
+       * whole unbroken cluster travels down together.
+       */
+      const carried: Token[] = [];
+      if (token.kind === 'word') {
+        while (current.tokens.length && current.tokens[current.tokens.length - 1].kind === 'word') {
+          const last = current.tokens[current.tokens.length - 1];
+          current.tokens.pop();
+          current.width -= last.width;
+          carried.unshift(last);
+        }
+        // A cluster alone on its line has nowhere to go; leave it and break.
+        if (!current.tokens.length && carried.length) {
+          current.tokens = carried.splice(0, carried.length);
+          current.width = current.tokens.reduce((total, t) => total + t.width, 0);
+        }
+      }
+
       flush(false, false);
+
+      for (const piece of carried) {
+        current.tokens.push(piece);
+        current.width += piece.width;
+      }
       if (token.kind === 'space') continue;
       current.tokens.push(token);
       current.width += token.width;

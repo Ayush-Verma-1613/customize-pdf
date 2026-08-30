@@ -1,5 +1,5 @@
 import type { Frame, LaidOutPage } from '@/lib/engine/types';
-import type { Overlay } from '@/lib/model/types';
+import type { Block, Overlay } from '@/lib/model/types';
 import type { Rect } from '@/lib/utils/geom';
 
 /** A clickable region on the page, mapped back to the thing that produced it. */
@@ -46,11 +46,14 @@ export function hitBoxesFor(page: LaidOutPage, overlays: Overlay[]): HitBox[] {
 
   for (const overlay of overlays) {
     if (overlay.page !== page.index) continue;
+    // Reported at its true size. Padding a thin element out to a usable target
+    // happens in screen pixels at the point of use, so the extra room lands
+    // evenly on both sides of the stroke rather than entirely below it.
     boxes.push({
       x: overlay.x,
       y: overlay.y,
-      width: Math.max(overlay.width, overlay.kind === 'line' ? 1 : 6),
-      height: Math.max(overlay.height, overlay.kind === 'line' ? 8 : 6),
+      width: overlay.width,
+      height: overlay.height,
       kind: 'overlay',
       id: overlay.id,
       rotation: overlay.rotation,
@@ -247,3 +250,123 @@ export function resizeRect(
 /** Angle in degrees from a box centre to a point, with 0 pointing up. */
 export const angleTo = (cx: number, cy: number, px: number, py: number) =>
   (Math.atan2(py - cy, px - cx) * 180) / Math.PI + 90;
+
+/* ------------------------------------------------------------------ *
+ * Insertion slots
+ * ------------------------------------------------------------------ */
+
+/** A gap on the page that new content can be dropped into. */
+export interface Slot {
+  /** Stable key, since a gap has no identity of its own. */
+  key: string;
+  /** Position in `doc.flow` that a new block would take. */
+  index: number;
+  /** Page-space y: the middle of a gap, or the top of the end strip. */
+  y: number;
+  /** Page-space left edge and width of the column this gap sits in. */
+  x: number;
+  width: number;
+  /** Height of the gap in points, for sizing the target. */
+  gap: number;
+  /** `end` is the standing invitation below the last block; `gap` is a hairline. */
+  kind: 'gap' | 'end';
+  /** Shown without hovering - the gap beside the selection, for touch. */
+  pinned?: boolean;
+}
+
+export interface SlotOptions {
+  selectedIndex: number;
+  isLastPage: boolean;
+  /** blockId -> the pages it appears on, from the laid-out document. */
+  blockPages: Record<string, number[]>;
+  columns: number;
+  columnGap: number;
+}
+
+/**
+ * Every place on this page where something could be added.
+ *
+ * A gap belongs to the block below it, so its slot takes that block's place in
+ * the flow - which is what makes "add here" land where it was pointed at rather
+ * than at the end. Two things stop that being naive: a block continued from an
+ * earlier page must not offer a second slot, or content would land a page
+ * before the pointer; and in a multi-column page the blocks are not in reading
+ * order by y, so neighbours are worked out per column and by flow position.
+ */
+export function insertSlots(
+  page: LaidOutPage,
+  boxes: HitBox[],
+  flow: Block[],
+  options: SlotOptions,
+): Slot[] {
+  const indexById = new Map(flow.map((block, i) => [block.id, i]));
+  const columns = Math.max(1, Math.min(4, options.columns));
+  const columnWidth = (page.content.width - options.columnGap * (columns - 1)) / columns;
+  const laneLeft = (lane: number) => page.content.x + lane * (columnWidth + options.columnGap);
+
+  const laneOf = (x: number) => {
+    if (columns === 1) return 0;
+    const lane = Math.round((x - page.content.x) / (columnWidth + options.columnGap));
+    return Math.max(0, Math.min(columns - 1, lane));
+  };
+
+  const lanes: HitBox[][] = Array.from({ length: columns }, () => []);
+  for (const box of boxes) {
+    if (box.kind !== 'flow' || !indexById.has(box.id)) continue;
+    lanes[laneOf(box.x)].push(box);
+  }
+  // Flow order, not y order: the engine filled the columns in this order, so
+  // consecutive entries here really are each other's neighbours.
+  for (const lane of lanes) {
+    lane.sort((a, b) => (indexById.get(a.id) ?? 0) - (indexById.get(b.id) ?? 0));
+  }
+
+  const slots: Slot[] = [];
+
+  lanes.forEach((lane, laneIndex) => {
+    lane.forEach((box, i) => {
+      const index = indexById.get(box.id);
+      if (index === undefined) return;
+      // The slot above a block belongs to the page the block starts on.
+      if (options.blockPages[box.id]?.[0] !== page.index) return;
+
+      const previous = lane[i - 1];
+      const above = previous ? previous.y + previous.height : page.content.y;
+      // The first gap in a column is usually nothing, so it borrows the margin
+      // above rather than covering the top of the block it belongs to.
+      const gap = Math.max(box.y - above, previous ? 3 : 9);
+
+      slots.push({
+        key: `before-${box.id}`,
+        index,
+        y: box.y - gap / 2,
+        x: laneLeft(laneIndex),
+        width: columnWidth,
+        gap,
+        kind: 'gap',
+        pinned: options.selectedIndex >= 0 && index === options.selectedIndex + 1,
+      });
+    });
+  });
+
+  // The standing invitation sits under the last thing on the page, in the last
+  // column that has anything in it.
+  const filled = lanes.map((lane, i) => ({ lane, i })).filter((entry) => entry.lane.length);
+  const tail = filled[filled.length - 1];
+  const last = tail?.lane[tail.lane.length - 1];
+  const trailingY = (last ? last.y + last.height : page.content.y) + 8;
+
+  if (options.isLastPage && trailingY + 40 < page.content.y + page.content.height) {
+    slots.push({
+      key: 'end-of-document',
+      index: last ? (indexById.get(last.id) ?? flow.length - 1) + 1 : 0,
+      y: trailingY,
+      x: laneLeft(tail?.i ?? 0),
+      width: columnWidth,
+      gap: 34,
+      kind: 'end',
+    });
+  }
+
+  return slots;
+}

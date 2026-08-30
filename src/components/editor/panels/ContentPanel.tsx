@@ -127,7 +127,7 @@ function Outline() {
                 'group relative rounded-lg border transition-colors',
                 selected
                   ? 'border-question-hue/40 bg-question-wash/50'
-                  : 'border-transparent hover:bg-slate-50',
+                  : 'border-transparent hover:bg-[#f8f5ef]',
                 overIndex === index && dragIndex !== null && 'border-t-2 border-t-question-hue',
               )}
             >
@@ -141,14 +141,14 @@ function Outline() {
               >
                 <GripVertical
                   size={13}
-                  className="mt-0.5 shrink-0 cursor-grab text-slate-300 group-hover:text-slate-400"
+                  className="mt-0.5 shrink-0 cursor-grab text-[#dcd6cc] group-hover:text-[#b3ada3]"
                 />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
                     <span
                       className={cx(
                         'rounded px-1.5 py-px text-[10px] font-medium',
-                        TYPE_TONE[block.type] ?? 'bg-slate-100 text-muted',
+                        TYPE_TONE[block.type] ?? 'bg-[#f1ede6] text-muted',
                       )}
                     >
                       {number ?? TYPE_LABEL[block.type]}
@@ -225,7 +225,7 @@ function MiniAction({
       onClick={onClick}
       className={cx(
         'flex h-5 w-5 items-center justify-center rounded bg-white/90 shadow-sm transition-colors disabled:opacity-30',
-        danger ? 'text-danger hover:bg-danger-wash' : 'text-muted hover:bg-slate-100',
+        danger ? 'text-danger hover:bg-danger-wash' : 'text-muted hover:bg-[#f1ede6]',
       )}
     >
       {children}
@@ -313,7 +313,7 @@ function ImportPanel({ onDone }: { onDone: () => void }) {
         <dl className="grid gap-1.5">
           {LEGEND.map(([pattern, meaning]) => (
             <div key={pattern} className="flex items-baseline gap-2">
-              <dt className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-ink-soft">
+              <dt className="shrink-0 rounded bg-[#f1ede6] px-1.5 py-0.5 font-mono text-[11px] text-ink-soft">
                 {pattern}
               </dt>
               <dd className="min-w-0 flex-1 text-[11px] text-faint">{meaning}</dd>
