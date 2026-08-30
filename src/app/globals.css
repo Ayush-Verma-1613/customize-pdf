@@ -155,6 +155,28 @@ body {
 }
 
 /**
+ * The page is a picture of a document, not a page of selectable text.
+ *
+ * Its SVG is made of real <text>, so a phone answers a long press on it with
+ * its own selection handles and callout menu. Those fight the editor for the
+ * same press - the browser claims the gesture, cancels the pointer stream the
+ * editor was timing, and puts its own grey handles over the words. The page
+ * opts out of both, and the one element where words are genuinely edited turns
+ * selection back on for itself.
+ */
+.page-surface {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.inline-editor {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/**
  * A finger is about 9mm across; a mouse pointer is one pixel. Controls that are
  * comfortable with a pointer are a poke in the dark with a thumb, so on a touch
  * screen they grow to the 44px everybody's guidelines agree on - and stay

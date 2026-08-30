@@ -281,7 +281,14 @@ export interface SlotOptions {
   blockPages: Record<string, number[]>;
   columns: number;
   columnGap: number;
+  /** The end strip is a fixed height in screen pixels, so it needs the scale. */
+  zoom: number;
+  /** The smallest grab target the stage renders, in screen pixels. */
+  minHit: number;
 }
+
+/** Rendered height of the end strip, in screen pixels. */
+export const END_STRIP_PX = 34;
 
 /**
  * Every place on this page where something could be added.
@@ -354,16 +361,76 @@ export function insertSlots(
   const filled = lanes.map((lane, i) => ({ lane, i })).filter((entry) => entry.lane.length);
   const tail = filled[filled.length - 1];
   const last = tail?.lane[tail.lane.length - 1];
-  const trailingY = (last ? last.y + last.height : page.content.y) + 8;
+  const stripLeft = laneLeft(tail?.i ?? 0);
+  const scale = Math.max(options.zoom, 0.05);
+  const stripHeight = END_STRIP_PX / scale;
 
-  if (options.isLastPage && trailingY + 40 < page.content.y + page.content.height) {
+  /**
+   * What the stage really puts under the finger, in page units.
+   *
+   * An element is reported at its true size, but the stage inflates anything
+   * smaller than a finger up to `minHit` screen pixels and lets the drawn
+   * outline stay where it was. Clearing the element's true rect therefore
+   * cleared only the part you can see: the invisible margin that actually
+   * catches the press stayed under the strip, which is why a text box that
+   * looked well clear of the invitation still could not be picked up. A
+   * rotated element is cleared by the box its corners sweep out.
+   */
+  const grabRect = (box: HitBox) => {
+    const radians = ((box.rotation || 0) * Math.PI) / 180;
+    const sin = Math.abs(Math.sin(radians));
+    const cos = Math.abs(Math.cos(radians));
+    const spanX = box.width * cos + box.height * sin;
+    const spanY = box.width * sin + box.height * cos;
+    const padX = Math.max(0, (options.minHit - spanX * scale) / 2) / scale;
+    const padY = Math.max(0, (options.minHit - spanY * scale) / 2) / scale;
+    const midX = box.x + box.width / 2;
+    const midY = box.y + box.height / 2;
+    return {
+      left: midX - spanX / 2 - padX,
+      right: midX + spanX / 2 + padX,
+      top: midY - spanY / 2 - padY,
+      bottom: midY + spanY / 2 + padY,
+    };
+  };
+
+  /**
+   * The space below the content is only empty until somebody parks a text box
+   * or a shape in it. The invitation is a solid, full-width target, so wherever
+   * it covered a drawn element it took every pointer aimed at that element -
+   * which made anything sitting in that band impossible to select, drag or drop
+   * onto. It steps below whatever it would have covered instead, and keeps
+   * stepping while that leaves it over something else.
+   */
+  const drawn = boxes
+    .filter((box) => box.kind === 'overlay')
+    .map(grabRect)
+    .filter((rect) => rect.left < stripLeft + columnWidth && rect.right > stripLeft);
+
+  // Measured on screen, not on paper: a phone fits the page at about 0.6, where
+  // eight points of paper is five pixels of finger - no clearance at all.
+  const clearance = Math.max(8, (options.minHit + 6) / scale);
+
+  let trailingY = (last ? grabRect(last).bottom : page.content.y) + clearance;
+  for (let guard = 0; guard <= drawn.length; guard += 1) {
+    const covered = drawn.find(
+      (rect) => rect.top < trailingY + stripHeight && rect.bottom > trailingY,
+    );
+    if (!covered) break;
+    trailingY = covered.bottom + clearance;
+  }
+
+  if (
+    options.isLastPage &&
+    trailingY + stripHeight < page.content.y + page.content.height
+  ) {
     slots.push({
       key: 'end-of-document',
       index: last ? (indexById.get(last.id) ?? flow.length - 1) + 1 : 0,
       y: trailingY,
-      x: laneLeft(tail?.i ?? 0),
+      x: stripLeft,
       width: columnWidth,
-      gap: 34,
+      gap: END_STRIP_PX,
       kind: 'end',
     });
   }

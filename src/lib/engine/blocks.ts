@@ -340,6 +340,32 @@ const paddingOf = (style?: BlockStyle): Margins | undefined => {
   };
 };
 
+/** How far the text on a line actually reaches, ignoring the space after it. */
+const inkWidth = (line: LineBox | undefined) =>
+  line ? line.items.reduce((widest, item) => Math.max(widest, item.x + item.width), 0) : 0;
+
+/**
+ * Where the marks label goes on the first line.
+ *
+ * At the right margin it lines every mark up in a column, which is what a
+ * printed exam paper wants. Set beside the text it follows the words instead,
+ * for a worksheet where a mark stranded across an inch of white space reads as
+ * belonging to nothing. It never passes the margin either way: the first line
+ * is already wrapped short by the width of the label, so there is always room.
+ */
+const marksDx = (
+  ctx: BuildContext,
+  deco: Deco,
+  pieceX: number,
+  line: LineBox | undefined,
+  rightEdge: number,
+  gap: number,
+) => {
+  const margin = rightEdge - deco.width;
+  if (ctx.numbering.marksPosition !== 'inline') return margin;
+  return Math.min(pieceX + (line?.x ?? 0) + inkWidth(line) + gap, margin);
+};
+
 const decoFor = (runs: Run[], base: BaseTextStyle, dx: number): Deco => {
   const lines = wrapRuns(runs, base, {
     widthAt: () => 100000,
@@ -532,7 +558,11 @@ export function buildFlowItem(block: Block, ctx: BuildContext): FlowItem {
         bold: true,
         lineHeight: 1.25,
       });
-      const marks = ctx.numbers.sectionMarks[block.id] ?? block.marks ?? 0;
+      // A figure typed onto the section is the teacher's decision and beats the
+      // running total. The computed sum is only a default, and it is always
+      // present - it is set to 0 for a section with no questions under it - so
+      // reading it first meant a typed value could never show at all.
+      const marks = block.marks ?? ctx.numbers.sectionMarks[block.id] ?? 0;
       const marksRuns: Run[] =
         ctx.numbering.showMarks && marks
           ? [{ text: applyFormat(ctx.numbering.marksFormat, String(marks)) }]
@@ -549,7 +579,10 @@ export function buildFlowItem(block: Block, ctx: BuildContext): FlowItem {
       const pieces: Piece[] = [
         textPiece({ kind: 'flow', id: block.id }, titleLines, indentL, width, undefined, {
           suffix: marksDeco
-            ? { ...marksDeco, dx: indentL + width - marksDeco.width }
+            ? {
+                ...marksDeco,
+                dx: marksDx(ctx, marksDeco, indentL, titleLines[0], indentL + width, 10),
+              }
             : undefined,
           splittable: false,
         }),
@@ -890,7 +923,7 @@ function buildQuestion(
     textPiece({ kind: 'flow', id: block.id }, lines, bodyX, bodyWidth, style, {
       prefix: label ? { ...decoFor([{ text: label }], base, 0), dx: indentL } : undefined,
       suffix: marksDeco
-        ? { ...marksDeco, dx: indentL + width - marksDeco.width }
+        ? { ...marksDeco, dx: marksDx(ctx, marksDeco, bodyX, lines[0], indentL + width, 12) }
         : undefined,
       orphans: style.orphans ?? 2,
       widows: style.widows ?? 2,
@@ -1001,7 +1034,17 @@ function buildQuestion(
             ? { ...decoFor([{ text: partLabel }], base, 0), dx: partX }
             : undefined,
           suffix: partMarksDeco
-            ? { ...partMarksDeco, dx: indentL + width - partMarksDeco.width }
+            ? {
+                ...partMarksDeco,
+                dx: marksDx(
+                  ctx,
+                  partMarksDeco,
+                  partX + partGutter,
+                  partLines[0],
+                  indentL + width,
+                  12,
+                ),
+              }
             : undefined,
           orphans: 1,
           widows: 1,

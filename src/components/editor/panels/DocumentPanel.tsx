@@ -300,6 +300,23 @@ export function DocumentPanel() {
               }
             />
           </Field>
+          <Field
+            label="Marks sit"
+            hint="Where the marks label prints on the line"
+          >
+            <Segmented
+              value={doc.numbering.marksPosition}
+              onChange={(marksPosition) =>
+                store.getState().edit((draft) => {
+                  draft.numbering.marksPosition = marksPosition as 'margin' | 'inline';
+                }, { label: 'Marks position' })
+              }
+              options={[
+                { value: 'margin', label: 'At the margin' },
+                { value: 'inline', label: 'Beside the text' },
+              ]}
+            />
+          </Field>
           <Toggle
             label="Show marks"
             hint="Prints the marks against each question"

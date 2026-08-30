@@ -73,8 +73,16 @@ export function CanvasArea() {
     return () => node.removeEventListener('wheel', onWheel);
   }, [setZoom]);
 
-  /* Two-finger pinch zoom. `touch-action: pan-x pan-y` leaves one-finger
-     scrolling to the browser and hands multi-touch gestures to us. */
+  /**
+   * Two fingers pinch and pan the document.
+   *
+   * Panning has to live here because everything on the page now takes its own
+   * gesture: an element that handed its touches to the scroller could never be
+   * dragged, since the browser decides that before the app sees the finger.
+   * So one finger moves what it lands on and two fingers move the page, which
+   * is the bargain every canvas editor on a phone makes. One finger still
+   * scrolls anywhere off the page - the margin around it, the backdrop.
+   */
   useEffect(() => {
     const node = scrollRef.current;
     if (!node) return;
@@ -82,10 +90,16 @@ export function CanvasArea() {
     const active = new Map<number, { x: number; y: number }>();
     let startSpread = 0;
     let startZoom = 1;
+    let lastMid: { x: number; y: number } | null = null;
 
     const spread = () => {
       const [a, b] = [...active.values()];
       return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
+    const midpoint = () => {
+      const [a, b] = [...active.values()];
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     };
 
     const down = (event: PointerEvent) => {
@@ -94,6 +108,7 @@ export function CanvasArea() {
       if (active.size === 2) {
         startSpread = spread();
         startZoom = useEditor.getState().zoom;
+        lastMid = midpoint();
       }
     };
 
@@ -103,11 +118,23 @@ export function CanvasArea() {
       if (active.size !== 2 || startSpread <= 0) return;
       event.preventDefault();
       setZoom(clamp((startZoom * spread()) / startSpread, 0.15, 5), 'manual');
+
+      // The page follows the point between the fingers, so pinching and moving
+      // are one gesture rather than two that have to be taken in turns.
+      const mid = midpoint();
+      if (lastMid) {
+        node.scrollLeft -= mid.x - lastMid.x;
+        node.scrollTop -= mid.y - lastMid.y;
+      }
+      lastMid = mid;
     };
 
     const up = (event: PointerEvent) => {
       active.delete(event.pointerId);
-      if (active.size < 2) startSpread = 0;
+      if (active.size < 2) {
+        startSpread = 0;
+        lastMid = null;
+      }
     };
 
     node.addEventListener('pointerdown', down);
@@ -123,6 +150,7 @@ export function CanvasArea() {
   }, [setZoom]);
 
   /* Track which page is centred so the page indicator stays honest. */
+  const lastActive = useRef(activePage);
   const onScroll = useCallback(() => {
     if (programmaticScroll.current) return;
     const node = scrollRef.current;
@@ -139,11 +167,16 @@ export function CanvasArea() {
         best = i;
       }
     });
-    if (best !== useEditor.getState().activePage) setActivePage(best);
+    if (best === useEditor.getState().activePage) return;
+    // Scrolling is what moved the page, so the effect below - which exists to
+    // follow a page chosen somewhere else - must not answer by scrolling again.
+    // Left unmarked it snapped the view back to the top of whichever page had
+    // just drifted into the middle, which fought every pan.
+    lastActive.current = best;
+    setActivePage(best);
   }, [setActivePage]);
 
   /* Scroll to the active page when it changes from outside (thumbnails, nav). */
-  const lastActive = useRef(activePage);
   useEffect(() => {
     if (lastActive.current === activePage) return;
     lastActive.current = activePage;

@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Lock } from 'lucide-react';
 import type { LaidOutPage } from '@/lib/engine/types';
 import type { Overlay } from '@/lib/model/types';
-import { useEditor } from '@/lib/store/editorStore';
+import { hasEditableText, useEditor } from '@/lib/store/editorStore';
 import { useCoarsePointer, useCompactLayout } from '@/lib/utils/useMedia';
 import { cx } from '@/lib/utils/cx';
 import { clamp, type Rect } from '@/lib/utils/geom';
@@ -35,11 +35,42 @@ interface DragState {
   id: string;
   kind: 'flow' | 'overlay';
   handle?: HandleId;
+  /** The contact that owns this drag; a second finger must not steer it. */
+  pointerId: number;
   startPointer: { x: number; y: number };
+  startClient: { x: number; y: number };
   startRect: Rect;
   startRotation: number;
   moved: boolean;
 }
+
+/** One pointer position, kept until the next animation frame reads it. */
+interface DragSample {
+  clientX: number;
+  clientY: number;
+  altKey: boolean;
+  shiftKey: boolean;
+  pointerId: number;
+}
+
+/**
+ * Gesture thresholds, all in CSS pixels of screen travel.
+ *
+ * They have to be read together. A finger is never still: it rolls a few
+ * pixels across a press, so the distance that promotes a press into a drag
+ * must be comfortably larger than the distance a press is allowed to wander,
+ * or every hold is reclassified as a drag before it can ripen. Measuring the
+ * drag threshold in page points made it worse - a phone fits the page at about
+ * 0.6, which turned three points into under two pixels of screen.
+ *
+ * The hold is also shorter than the ~500ms at which phones raise their own
+ * long-press gesture, so ours has already ripened by the time the platform
+ * interrupts.
+ */
+const LONG_PRESS_SLOP = 8;
+const DRAG_SLOP_TOUCH = 16;
+const DRAG_SLOP_MOUSE = 3;
+const LONG_PRESS_MS = 320;
 
 export interface PageStageProps {
   page: LaidOutPage;
@@ -63,10 +94,34 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
   const coarse = useCoarsePointer();
   const surfaceRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
+  // Pointer events outrun the screen - a phone can fire well over a hundred a
+  // second - and every one of them used to run a layout pass and a render.
+  // The newest position is parked here and read once per frame instead.
+  const sampleRef = useRef<DragSample | null>(null);
+  const frameRef = useRef(0);
+  /** Touch contacts currently on this page, so a pinch is never also a drag. */
+  const touchesRef = useRef(new Set<number>());
+  const pressRef = useRef<{
+    timer: number;
+    id: string;
+    pointerId: number;
+    x: number;
+    y: number;
+    /** The hold has lasted long enough to count; the lift decides what it was. */
+    ripe: boolean;
+  } | null>(null);
   const [guides, setGuides] = useState<SnapGuide[]>([]);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [hoverSlot, setHoverSlot] = useState<string | null>(null);
+
+  /**
+   * A horizontal line is zero points tall, which leaves a target only a few
+   * pixels high once the page is zoomed to fit - too fine to hit with a
+   * trackpad, and impossible with a finger. Thin elements get an invisible
+   * margin so they can be picked up; the outline still shows their true size.
+   */
+  const MIN_HIT = coarse ? 30 : 14;
 
   const boxes = useMemo(() => hitBoxesFor(page, doc.overlays), [page, doc.overlays]);
   const interactive = mode === 'design';
@@ -114,7 +169,9 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
       id: box.id,
       kind: box.kind,
       handle,
+      pointerId: event.pointerId,
       startPointer: toPagePoint(event),
+      startClient: { x: event.clientX, y: event.clientY },
       startRect: { x: box.x, y: box.y, width: box.width, height: box.height },
       startRotation: box.rotation,
       moved: false,
@@ -145,20 +202,18 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
     setHoverSlot(near?.key ?? null);
   };
 
-  const onPointerMove = (event: React.PointerEvent) => {
+  /**
+   * Apply the newest pointer position. Called from an animation frame, so it
+   * runs at most once per painted frame however fast the pointer reports.
+   */
+  const applySample = () => {
     const drag = dragRef.current;
-    if (!drag) {
-      trackSlotHover(event);
-      return;
-    }
-    const point = toPagePoint(event);
+    const sample = sampleRef.current;
+    if (!drag || !sample) return;
+
+    const point = toPagePoint({ clientX: sample.clientX, clientY: sample.clientY });
     const dx = point.x - drag.startPointer.x;
     const dy = point.y - drag.startPointer.y;
-    if (!drag.moved && Math.hypot(dx, dy) < 3) return;
-    if (!drag.moved) {
-      drag.moved = true;
-      surfaceRef.current?.setPointerCapture?.(event.pointerId);
-    }
 
     if (drag.kind === 'flow') {
       setDropIndex(nearestFlowSlot(point.y));
@@ -171,7 +226,7 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
 
     if (drag.mode === 'move') {
       const moved = { ...drag.startRect, x: drag.startRect.x + dx, y: drag.startRect.y + dy };
-      const snapped = snapRect(moved, page, others, snapEnabled && !event.altKey);
+      const snapped = snapRect(moved, page, others, snapEnabled && !sample.altKey);
       setGuides(snapped.guides);
       store.getState().updateOverlay(drag.id, { x: snapped.x, y: snapped.y }, { coalesce: `move:${drag.id}` });
       return;
@@ -179,7 +234,7 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
 
     if (drag.mode === 'resize' && drag.handle) {
       const overlay = overlayById(drag.id);
-      const keepAspect = event.shiftKey || overlay?.kind === 'image';
+      const keepAspect = sample.shiftKey || overlay?.kind === 'image';
       // A line is a pair of points, not a box: forcing a minimum height on a
       // horizontal one bends it the moment you drag either end.
       const next = resizeRect(
@@ -190,7 +245,7 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
         keepAspect,
         overlay?.kind === 'line' ? 0 : undefined,
       );
-      const snapped = snapRect(next, page, others, snapEnabled && !event.altKey);
+      const snapped = snapRect(next, page, others, snapEnabled && !sample.altKey);
       setGuides(snapped.guides);
       store.getState().updateOverlay(
         drag.id,
@@ -210,12 +265,162 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
       const cx = drag.startRect.x + drag.startRect.width / 2;
       const cy = drag.startRect.y + drag.startRect.height / 2;
       const raw = angleTo(cx, cy, point.x, point.y);
-      const angle = event.shiftKey ? Math.round(raw / 15) * 15 : Math.round(raw);
+      const angle = sample.shiftKey ? Math.round(raw / 15) * 15 : Math.round(raw);
       store.getState().updateOverlay(drag.id, { rotation: angle }, { coalesce: `rotate:${drag.id}` });
     }
   };
 
+  const scheduleFrame = () => {
+    if (frameRef.current) return;
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = 0;
+      applySample();
+    });
+  };
+
+  /** Run any position that arrived after the last frame, then stop scheduling. */
+  const flushFrame = () => {
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = 0;
+      applySample();
+    }
+    sampleRef.current = null;
+  };
+
+  const cancelLongPress = () => {
+    if (!pressRef.current) return;
+    clearTimeout(pressRef.current.timer);
+    pressRef.current = null;
+  };
+
+  /** Whether this box is made of words, so holding it could open the caret. */
+  const holdsText = (box: HitBox) => {
+    const state = store.getState();
+    const target =
+      box.kind === 'overlay'
+        ? state.doc.overlays.find((o) => o.id === box.id)
+        : state.doc.flow.find((b) => b.id === box.id);
+    return hasEditableText(target ?? null);
+  };
+
+  /**
+   * Holding a word opens it for editing with that word selected.
+   *
+   * A finger has no second button and no reliable double-click, so on a touch
+   * screen there was no way to reach a single word: the format bar could only
+   * be opened by double-tapping, and every mark it applied landed on the whole
+   * box.
+   *
+   * The hold only ripens here - it is the lift that decides what the gesture
+   * was. Opening the editor the moment the timer fired stole every drag that
+   * began with a pause, which is most of them: picking something up on a phone
+   * means putting a finger on it and waiting to see it respond. A press that
+   * travels is a drag; a press that lifts where it landed wanted the word.
+   */
+  const startLongPress = (event: React.PointerEvent, box: HitBox) => {
+    cancelLongPress();
+    if (event.pointerType === 'mouse' || box.locked || !holdsText(box)) return;
+    const timer = window.setTimeout(() => {
+      if (!pressRef.current) return;
+      pressRef.current.ripe = true;
+      // Say so through the case, since nothing on screen has changed yet.
+      navigator.vibrate?.(8);
+    }, LONG_PRESS_MS);
+    pressRef.current = {
+      timer,
+      id: box.id,
+      pointerId: event.pointerId,
+      // Page space, not screen space. The phone may scroll the canvas or lift
+      // it on the software keyboard between the press and the moment the
+      // editor hit-tests for the word, and a screen coordinate would by then
+      // point at a different line - or at nothing.
+      ...toPagePoint(event),
+      ripe: false,
+    };
+  };
+
+  /** Open the word under a ripe hold that never travelled. */
+  const settleLongPress = (client: { x: number; y: number }) => {
+    const press = pressRef.current;
+    pressRef.current = null;
+    if (!press) return;
+    clearTimeout(press.timer);
+    if (!press.ripe || dragRef.current?.moved) return;
+    const page = toPagePoint({ clientX: client.x, clientY: client.y });
+    if (Math.hypot(page.x - press.x, page.y - press.y) * zoom > LONG_PRESS_SLOP) return;
+    dragRef.current = null;
+    sampleRef.current = null;
+    store.getState().beginEditing(press.id, { x: press.x, y: press.y });
+  };
+
+  const finishLongPress = (event: React.PointerEvent) => {
+    if (pressRef.current && event.pointerId !== pressRef.current.pointerId) return;
+    settleLongPress({ x: event.clientX, y: event.clientY });
+  };
+
+  /**
+   * A cancelled pointer still finishes a ripe hold.
+   *
+   * Phones abandon a pointer stream for their own reasons - the compositor
+   * decides the gesture was a pan, or the platform's own long-press gesture
+   * takes over at about half a second. Either way no pointerup ever arrives,
+   * and treating that as "nothing happened" threw away exactly the presses the
+   * user had held longest. A ripe hold that never moved is unambiguous
+   * whatever ended it.
+   */
+  const abandonLongPress = (event: React.PointerEvent) => {
+    if (pressRef.current && event.pointerId !== pressRef.current.pointerId) return;
+    settleLongPress({ x: event.clientX, y: event.clientY });
+  };
+
+  const onPointerMove = (event: React.PointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag) {
+      trackSlotHover(event);
+      return;
+    }
+    // A second contact - the hand steadying the phone, a knuckle at the edge -
+    // must not steer a drag it did not start.
+    if (event.pointerId !== drag.pointerId) return;
+    // Two fingers down is a pinch or a pan of the canvas. Moving the element
+    // underneath at the same time would fight it.
+    if (touchesRef.current.size > 1) return;
+
+    const travelled = Math.hypot(
+      event.clientX - drag.startClient.x,
+      event.clientY - drag.startClient.y,
+    );
+    // A finger never holds perfectly still, so a press that has begun to travel
+    // is a drag and no longer a request to edit the word underneath. The drag
+    // itself only starts further out than that, so the two never race.
+    if (pressRef.current && travelled > LONG_PRESS_SLOP) cancelLongPress();
+
+    if (!drag.moved) {
+      const slop = event.pointerType === 'mouse' ? DRAG_SLOP_MOUSE : DRAG_SLOP_TOUCH;
+      if (travelled < slop) return;
+      drag.moved = true;
+      try {
+        surfaceRef.current?.setPointerCapture?.(event.pointerId);
+      } catch {
+        // The pointer was released between the move and this call; the drag
+        // ends on its own from the up event.
+      }
+    }
+
+    sampleRef.current = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      altKey: event.altKey,
+      shiftKey: event.shiftKey,
+      pointerId: event.pointerId,
+    };
+    scheduleFrame();
+  };
+
   const endDrag = () => {
+    cancelLongPress();
+    flushFrame();
     const drag = dragRef.current;
     dragRef.current = null;
     setGuides([]);
@@ -275,6 +480,8 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
           blockPages: laid.blockPages,
           columns: doc.page.columns,
           columnGap: doc.page.columnGap,
+          zoom,
+          minHit: MIN_HIT,
         })
       : [];
 
@@ -298,18 +505,11 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
 
   const px = (value: number) => value * zoom;
 
-  /**
-   * A horizontal line is zero points tall, which leaves a target only a few
-   * pixels high once the page is zoomed to fit - too fine to hit with a
-   * trackpad, and impossible with a finger. Thin elements get an invisible
-   * margin so they can be picked up; the outline still shows their true size.
-   */
-  const MIN_HIT = 14;
 
   return (
     <div
       className={cx(
-        'relative shrink-0 rounded-[3px] bg-white paper-shadow transition-shadow',
+        'page-surface relative shrink-0 rounded-[3px] bg-white paper-shadow transition-shadow',
         active && interactive && 'ring-1 ring-question-hue/25',
       )}
       style={{ width: px(page.width), height: px(page.height) }}
@@ -326,9 +526,28 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
         <div
           ref={surfaceRef}
           className="absolute inset-0"
+          onPointerDownCapture={(event) => {
+            if (event.pointerType !== 'touch') return;
+            touchesRef.current.add(event.pointerId);
+            // The moment a second finger lands the gesture belongs to the
+            // canvas, so whatever the first one had started is let go.
+            if (touchesRef.current.size > 1) {
+              cancelLongPress();
+              dragRef.current = null;
+              sampleRef.current = null;
+            }
+          }}
           onPointerMove={onPointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
+          onPointerUp={(event) => {
+            touchesRef.current.delete(event.pointerId);
+            finishLongPress(event);
+            endDrag();
+          }}
+          onPointerCancel={(event) => {
+            touchesRef.current.delete(event.pointerId);
+            abandonLongPress(event);
+            endDrag();
+          }}
           onPointerLeave={() => setHoverSlot(null)}
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) store.getState().clearSelection();
@@ -340,6 +559,23 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
             openContextMenu(e.clientX, e.clientY);
           }}
         >
+          {masterBands.map((band) => (
+            <button
+              key={band.which}
+              type="button"
+              title={`${band.which === 'footer' ? 'Footer' : 'Header'} - click to change or remove it`}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => host.openPanel('document')}
+              className="absolute rounded border border-transparent transition-colors hover:border-dashed hover:border-question-hue/50 hover:bg-question-wash/30"
+              style={{
+                left: px(band.x) - 4,
+                top: px(band.y) - 3,
+                width: px(band.width) + 8,
+                height: px(band.height) + 6,
+              }}
+            />
+          ))}
+
           {boxes.map((box) => {
             const isSelected = selectedIds.includes(box.id);
             const isEditing = editingId === box.id;
@@ -361,9 +597,21 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
                   width: width + padX * 2,
                   height: height + padY * 2,
                   transform: box.rotation ? `rotate(${box.rotation}deg)` : undefined,
-                  // A finger on an unselected element should scroll the page;
-                  // once it is selected, the same finger drags it instead.
-                  touchAction: isSelected && !box.locked ? 'none' : 'manipulation',
+                  /**
+                   * On a touch screen the element owns the gesture that starts
+                   * on it, whether or not it has been selected yet.
+                   *
+                   * `touch-action` is latched by the browser when the finger
+                   * lands, before any of this code runs - so deriving it from
+                   * the selection could never work: selection happens in the
+                   * very pointerdown whose gesture has already been decided.
+                   * Anything not already selected was therefore handed to the
+                   * scroller, which is why text would not move however
+                   * carefully it was dragged. The page is scrolled with two
+                   * fingers instead, or from the margin around it.
+                   */
+                  touchAction:
+                    !box.locked && (coarse || isSelected) ? 'none' : 'manipulation',
                 }}
                 onPointerEnter={() => setHovered(box.id)}
                 onPointerLeave={() => setHovered((h) => (h === box.id ? null : h))}
@@ -379,6 +627,23 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
                   if (box.kind === 'overlay') store.getState().selectOverlay(box.id, e.shiftKey);
                   else store.getState().selectBlock(box.id, e.shiftKey);
                   beginDrag(e, box, box.kind === 'flow' ? 'reorder' : 'move');
+                  startLongPress(e, box);
+                }}
+                onPointerUp={finishLongPress}
+                onPointerCancel={abandonLongPress}
+                onContextMenu={(e) => {
+                  // On a touch screen the browser raises this from the same
+                  // hold the editor is already timing. Left alone it opens a
+                  // second menu over the first and, on Android, ends the touch
+                  // sequence outright - so the hold is swallowed by a menu
+                  // nobody asked for. Only a real right-click gets one.
+                  const type =
+                    'pointerType' in e.nativeEvent
+                      ? (e.nativeEvent as PointerEvent).pointerType
+                      : 'mouse';
+                  if (type === 'mouse') return;
+                  e.preventDefault();
+                  e.stopPropagation();
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
@@ -451,23 +716,6 @@ export function PageStage({ page, zoom, active, onActivate }: PageStageProps) {
               emptyDocument={doc.flow.length === 0}
             />
           ) : null}
-
-          {masterBands.map((band) => (
-            <button
-              key={band.which}
-              type="button"
-              title={`${band.which === 'footer' ? 'Footer' : 'Header'} - click to change or remove it`}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => host.openPanel('document')}
-              className="absolute rounded border border-transparent transition-colors hover:border-dashed hover:border-question-hue/50 hover:bg-question-wash/30"
-              style={{
-                left: px(band.x) - 4,
-                top: px(band.y) - 3,
-                width: px(band.width) + 8,
-                height: px(band.height) + 6,
-              }}
-            />
-          ))}
 
           {guides.map((guide, i) => (
             <div

@@ -66,6 +66,20 @@ interface EditOptions {
  * ------------------------------------------------------------------ */
 
 export type SidePanel = 'elements' | 'templates' | 'content' | 'pages' | 'document' | 'guide';
+
+/**
+ * Where a long press landed, in client coordinates.
+ *
+ * A finger cannot double-click and has no second button, so on a touch screen
+ * holding a word is what opens it for editing. The point travels with the
+ * request because only the inline editor can turn it back into a caret - and
+ * it has to do that against the text it is about to render, not the SVG the
+ * finger actually touched.
+ */
+export interface EditingSeed {
+  x: number;
+  y: number;
+}
 export type EditorMode = 'design' | 'preview';
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
@@ -80,6 +94,8 @@ export interface EditorState {
   panel: SidePanel;
   /** Block or overlay currently open for inline text editing. */
   editingId: string | null;
+  /** Consumed once by the inline editor to select the word that was held. */
+  editingSeed: EditingSeed | null;
   showGrid: boolean;
   snapEnabled: boolean;
   fontsReady: boolean;
@@ -119,7 +135,8 @@ export interface EditorState {
   selectBlock: (id: string, additive?: boolean) => void;
   selectOverlay: (id: string, additive?: boolean) => void;
   clearSelection: () => void;
-  beginEditing: (id: string | null) => void;
+  beginEditing: (id: string | null, seed?: EditingSeed) => void;
+  clearEditingSeed: () => void;
 
   /* blocks */
   addBlock: (type: BlockType, at?: number) => void;
@@ -217,6 +234,7 @@ export const useEditor = create<EditorState>((set, get) => {
     mode: 'design',
     panel: 'elements',
     editingId: null,
+    editingSeed: null,
     showGrid: false,
     snapEnabled: true,
     fontsReady: false,
@@ -307,14 +325,20 @@ export const useEditor = create<EditorState>((set, get) => {
     canRedo: () => get().future.length > 0,
 
     setZoom: (zoom, fit = 'manual') => set({ zoom: clamp(zoom, 0.15, 5), fitMode: fit }),
-    setMode: (mode) => set({ mode, editingId: null, selection: mode === 'preview' ? { kind: 'none' } : get().selection }),
+    setMode: (mode) =>
+      set({
+        mode,
+        editingId: null,
+        editingSeed: null,
+        selection: mode === 'preview' ? { kind: 'none' } : get().selection,
+      }),
     setPanel: (panel) => set({ panel }),
     setActivePage: (index) =>
       set({ activePage: clamp(index, 0, Math.max(0, get().laid.pages.length - 1)) }),
     toggleGrid: () => set({ showGrid: !get().showGrid }),
     toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
 
-    select: (selection) => set({ selection, editingId: null }),
+    select: (selection) => set({ selection, editingId: null, editingSeed: null }),
 
     selectBlock: (id, additive) => {
       const { selection } = get();
@@ -340,7 +364,7 @@ export const useEditor = create<EditorState>((set, get) => {
       set({ selection: { kind: 'overlay', ids: [id] } });
     },
 
-    clearSelection: () => set({ selection: { kind: 'none' }, editingId: null }),
+    clearSelection: () => set({ selection: { kind: 'none' }, editingId: null, editingSeed: null }),
 
     /**
      * Only things made of words can be typed into. Accepting anything else set
@@ -348,15 +372,20 @@ export const useEditor = create<EditorState>((set, get) => {
      * element's toolbar and stopped it taking clicks - so a line, once
      * double-clicked, could no longer be selected or deleted.
      */
-    beginEditing: (id) => {
+    beginEditing: (id, seed) => {
       if (id === null) {
-        set({ editingId: null });
+        set({ editingId: null, editingSeed: null });
         return;
       }
       const { doc } = get();
       const target =
         doc.flow.find((b) => b.id === id) ?? doc.overlays.find((o) => o.id === id) ?? null;
-      set({ editingId: hasEditableText(target) ? id : null });
+      const editable = hasEditableText(target);
+      set({ editingId: editable ? id : null, editingSeed: editable ? (seed ?? null) : null });
+    },
+
+    clearEditingSeed: () => {
+      if (get().editingSeed) set({ editingSeed: null });
     },
 
     addBlock: (type, at) => {
@@ -373,16 +402,28 @@ export const useEditor = create<EditorState>((set, get) => {
       }, { label: 'Insert content' });
     },
 
+    /**
+     * Only the block being changed is copied.
+     *
+     * Cloning the whole document here would hand every other block a fresh
+     * identity, and block identity is exactly what the layout engine memoises
+     * its measurements against - so a single keystroke threw away the measured
+     * width of every line in the document and re-measured it. Copying one block
+     * leaves the rest of the cache warm.
+     */
     updateBlock: (id, patch, options) => {
-      get().edit((draft) => {
-        const index = draft.flow.findIndex((b) => b.id === id);
-        if (index < 0) return;
-        const result = patch(draft.flow[index]);
-        if (result) draft.flow[index] = result;
-        // Touching a block the template wrote makes it the user's, so a later
-        // restyle carries it across instead of regenerating over the top.
-        delete draft.flow[index].generated;
-      }, options ?? { coalesce: `block:${id}` });
+      const doc = get().doc;
+      const index = doc.flow.findIndex((b) => b.id === id);
+      if (index < 0) return;
+      const draft = structuredClone(doc.flow[index]);
+      const result = patch(draft);
+      const next = result ?? draft;
+      // Touching a block the template wrote makes it the user's, so a later
+      // restyle carries it across instead of regenerating over the top.
+      delete next.generated;
+      const flow = doc.flow.slice();
+      flow[index] = next;
+      commit({ ...doc, flow }, options ?? { coalesce: `block:${id}` });
     },
 
     removeBlock: (id) => {
@@ -442,12 +483,18 @@ export const useEditor = create<EditorState>((set, get) => {
       return overlay.id;
     },
 
+    /**
+     * Dragging a drawn element writes here on every animation frame, so it
+     * takes the same structural-sharing path as updateBlock: the flow is passed
+     * through untouched and keeps every measurement the engine has cached.
+     */
     updateOverlay: (id, patch, options) => {
-      get().edit((draft) => {
-        const index = draft.overlays.findIndex((o) => o.id === id);
-        if (index < 0) return;
-        draft.overlays[index] = { ...draft.overlays[index], ...patch } as Overlay;
-      }, options ?? { coalesce: `overlay:${id}` });
+      const doc = get().doc;
+      const index = doc.overlays.findIndex((o) => o.id === id);
+      if (index < 0) return;
+      const overlays = doc.overlays.slice();
+      overlays[index] = { ...overlays[index], ...patch } as Overlay;
+      commit({ ...doc, overlays }, options ?? { coalesce: `overlay:${id}` });
     },
 
     removeOverlay: (id) => {

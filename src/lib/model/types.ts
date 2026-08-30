@@ -437,6 +437,12 @@ export interface NumberingConfig {
   /** How marks are rendered next to a question. */
   marksFormat: string;
   showMarks: boolean;
+  /**
+   * Where the marks label sits: out at the right margin, which is how a
+   * printed exam paper reads, or hard against the end of the text it belongs
+   * to, which suits a worksheet or a short-answer sheet.
+   */
+  marksPosition: 'margin' | 'inline';
   /** Restart numbering at every section block. */
   restartEachSection: boolean;
 }

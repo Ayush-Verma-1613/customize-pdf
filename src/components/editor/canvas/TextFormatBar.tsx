@@ -32,10 +32,25 @@ export interface TextFormatBarProps {
   onHighlight: (colour: string | null) => void;
   /** Above the text by preference, below it when the box is near the page top. */
   placement: 'above' | 'below';
+  /** Called as any control is pressed, while the selection is still live. */
+  onPressStart?: () => void;
+  /** Fingers need targets a mouse does not, and cannot hover for a tooltip. */
+  touch?: boolean;
 }
 
 /** Stops a control stealing the selection the command is about to act on. */
 const keepSelection = (event: React.MouseEvent) => event.preventDefault();
+
+/**
+ * A mouse announces itself with mousedown, which can be cancelled before the
+ * selection goes anywhere. A finger does not: its mouse events are synthesised
+ * after the fact, long after the selection has been dropped and the text has
+ * lost focus. Cancelling the pointer event is the only thing that happens early
+ * enough - and it leaves the click itself intact, so the button still fires.
+ */
+const keepSelectionOnTouch = (event: React.PointerEvent) => {
+  if (event.pointerType !== 'mouse') event.preventDefault();
+};
 
 export function TextFormatBar({
   marks,
@@ -44,6 +59,8 @@ export function TextFormatBar({
   onColor,
   onHighlight,
   placement,
+  onPressStart,
+  touch = false,
 }: TextFormatBarProps) {
   const [picker, setPicker] = useState<'color' | 'highlight' | null>(null);
 
@@ -52,34 +69,43 @@ export function TextFormatBar({
   return (
     <div
       className={cx(
-        'animate-rise absolute left-0 z-40 flex items-center gap-0.5 rounded-xl border border-line bg-white p-1 shadow-lg',
+        'animate-rise absolute left-0 z-40 flex max-w-[min(94vw,420px)] flex-wrap items-center gap-0.5 rounded-xl border border-line bg-white p-1 shadow-lg',
         placement === 'above' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
       )}
-      onPointerDown={(event) => event.stopPropagation()}
+      onPointerDownCapture={(event) => {
+        // Before anything else reacts, while the chosen words are still chosen.
+        onPressStart?.();
+        event.stopPropagation();
+        keepSelectionOnTouch(event);
+      }}
       onMouseDown={keepSelection}
     >
       <Toggle
         icon={<Bold size={15} />}
         label={`Bold ${scope}`}
         active={marks.bold}
+        touch={touch}
         onPress={() => onToggle('bold')}
       />
       <Toggle
         icon={<Italic size={15} />}
         label={`Italic ${scope}`}
         active={marks.italic}
+        touch={touch}
         onPress={() => onToggle('italic')}
       />
       <Toggle
         icon={<Underline size={15} />}
         label={`Underline ${scope}`}
         active={marks.underline}
+        touch={touch}
         onPress={() => onToggle('underline')}
       />
       <Toggle
         icon={<Strikethrough size={15} />}
         label={`Strike through ${scope}`}
         active={marks.strike}
+        touch={touch}
         onPress={() => onToggle('strike')}
       />
 
@@ -92,6 +118,7 @@ export function TextFormatBar({
         onOpen={() => setPicker(picker === 'color' ? null : 'color')}
         onClose={() => setPicker(null)}
         colours={PALETTE}
+        touch={touch}
         onPick={onColor}
       />
       <Swatches
@@ -101,11 +128,17 @@ export function TextFormatBar({
         onOpen={() => setPicker(picker === 'highlight' ? null : 'highlight')}
         onClose={() => setPicker(null)}
         colours={HIGHLIGHTS}
+        touch={touch}
         onPick={(colour) => onHighlight(colour)}
         onClear={() => onHighlight(null)}
       />
 
-      <span className="ml-1 hidden pr-1 text-[10px] whitespace-nowrap text-faint sm:block">
+      <span
+        className={cx(
+          'ml-1 pr-1 text-[10px] whitespace-nowrap text-faint',
+          touch ? 'block' : 'hidden sm:block',
+        )}
+      >
         {collapsed ? 'whole text' : 'selected words'}
       </span>
     </div>
@@ -116,11 +149,13 @@ function Toggle({
   icon,
   label,
   active,
+  touch,
   onPress,
 }: {
   icon: ReactNode;
   label: string;
   active: boolean;
+  touch?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -132,7 +167,8 @@ function Toggle({
       onMouseDown={keepSelection}
       onClick={onPress}
       className={cx(
-        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
+        'flex shrink-0 items-center justify-center rounded-lg transition-colors',
+        touch ? 'h-11 w-11' : 'h-8 w-8',
         active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-[#f1ede6]',
       )}
     >
@@ -148,6 +184,7 @@ function Swatches({
   onOpen,
   onClose,
   colours,
+  touch,
   onPick,
   onClear,
 }: {
@@ -157,6 +194,7 @@ function Swatches({
   onOpen: () => void;
   onClose: () => void;
   colours: string[];
+  touch?: boolean;
   onPick: (colour: string) => void;
   onClear?: () => void;
 }) {
@@ -169,7 +207,8 @@ function Swatches({
         onMouseDown={keepSelection}
         onClick={onOpen}
         className={cx(
-          'flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+          'flex items-center justify-center rounded-lg transition-colors',
+          touch ? 'h-11 w-11' : 'h-8 w-8',
           open ? 'bg-ink text-white' : 'text-ink-soft hover:bg-[#f1ede6]',
         )}
       >
@@ -180,7 +219,13 @@ function Swatches({
         <Popup
           label={label}
           onClose={onClose}
-          className="absolute top-full left-0 mt-1.5 w-[184px]"
+          className={cx(
+            'absolute left-0 z-50',
+            touch ? 'w-[248px]' : 'w-[184px]',
+            // Above the bar on a phone: the bar itself already sits low on the
+            // page and a popover below it would open off the bottom.
+            touch ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+          )}
         >
           <div className="grid grid-cols-6 gap-1.5 p-1" onMouseDown={keepSelection}>
             {colours.map((colour) => (
@@ -194,7 +239,10 @@ function Swatches({
                   onPick(colour);
                   onClose();
                 }}
-                className="h-6 w-6 rounded-md border border-black/10 transition-transform hover:scale-110"
+                className={cx(
+                  'rounded-md border border-black/10 transition-transform hover:scale-110',
+                  touch ? 'h-9 w-9' : 'h-6 w-6',
+                )}
                 style={{ background: colour }}
               />
             ))}

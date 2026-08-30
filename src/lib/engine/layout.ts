@@ -55,6 +55,7 @@ const contextSignature = (ctx: BuildContext) =>
     ctx.numbering.partStyle,
     ctx.numbering.marksFormat,
     ctx.numbering.showMarks ? 1 : 0,
+    ctx.numbering.marksPosition,
     measurer.ready() ? 'exact' : 'approx',
   ].join('|');
 

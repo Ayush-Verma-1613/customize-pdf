@@ -67,6 +67,7 @@ export const defaultNumbering = (): NumberingConfig => ({
   gutter: 0,
   marksFormat: '[{n}]',
   showMarks: true,
+  marksPosition: 'margin',
   restartEachSection: false,
 });
 

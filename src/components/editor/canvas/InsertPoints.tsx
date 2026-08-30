@@ -51,11 +51,12 @@ export function InsertPoints({
         return (
           <div
             key={slot.key}
-            // A hairline gap must not take pointer events, or it would swallow
-            // clicks on the edges of the blocks it sits between. Only the pill
-            // itself is clickable. The end strip sits in empty space below the
-            // content, so it can be a button in the ordinary way.
-            className={cx('absolute', isEnd ? 'pointer-events-auto' : 'pointer-events-none')}
+            // Nothing here takes pointer events, only the controls inside it.
+            // The end strip used to, on the grounds that it sat in empty space
+            // - but it is a full-width band, and anything that drifts under it
+            // becomes unselectable and undraggable. Letting the band itself be
+            // inert means it can never take a press meant for the document.
+            className="pointer-events-none absolute"
             style={{
               left: slot.x * zoom,
               // The permanent strip hangs below the last block; a hover target
@@ -70,7 +71,10 @@ export function InsertPoints({
               <button
                 type="button"
                 onClick={() => setOpen(isOpen ? null : slot.key)}
-                className="flex h-full w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#dcd6cc] bg-white/70 text-[12px] font-medium text-muted transition-colors hover:border-question-hue/50 hover:bg-question-wash/40 hover:text-question-hue"
+                // Its own gesture, never the scroller's: a press that lands here
+                // is meant for this button and nothing else.
+                style={{ touchAction: 'none' }}
+                className="pointer-events-auto flex h-full w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#dcd6cc] bg-white/70 text-[12px] font-medium text-muted transition-colors hover:border-question-hue/50 hover:bg-question-wash/40 hover:text-question-hue"
               >
                 <Plus size={14} />
                 {emptyDocument ? 'Add your first heading, question or table' : 'Add something here'}
@@ -99,7 +103,7 @@ export function InsertPoints({
               <Popup
                 label="Add something here"
                 onClose={() => setOpen(null)}
-                className="pointer-events-auto absolute top-full left-1/2 mt-1 -translate-x-1/2"
+                className="pointer-events-auto absolute top-full left-1/2 z-50 mt-1 -translate-x-1/2"
               >
                 {clipboard ? (
                   <>

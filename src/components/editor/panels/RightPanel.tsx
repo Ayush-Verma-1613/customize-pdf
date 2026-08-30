@@ -231,6 +231,21 @@ function BlockContent({ block }: { block: Block }) {
               }, `instr:${block.id}`)
             }
           />
+          <Field
+            label="Marks"
+            hint="0 adds up the questions in this section"
+          >
+            <NumberInput
+              value={block.marks ?? 0}
+              min={0}
+              step={0.5}
+              onChange={(marks) =>
+                update((draft) => {
+                  if (draft.type === 'section') draft.marks = marks || undefined;
+                }, `secmarks:${block.id}`)
+              }
+            />
+          </Field>
           <Toggle
             label="Rule under the title"
             checked={!!block.rule}
