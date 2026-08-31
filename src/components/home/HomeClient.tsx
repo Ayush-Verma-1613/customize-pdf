@@ -58,18 +58,29 @@ const NOT_YET_LAID: LaidOutDoc = {
  * and the middle shows the real thing - laid out by the same engine that writes
  * the PDF, so nothing on screen is a mock-up of the result.
  */
-export function HomeClient() {
+export function HomeClient({ initialTemplateId }: { initialTemplateId?: string }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [templateId, setTemplateId] = useState(FIRST);
+  /* A template chosen on the onboarding page arrives in the URL and is applied
+     before the first render, so the workspace never flashes the default one on
+     the way to the requested one. An id that names no template is ignored
+     rather than trusted, which is what stops a hand-edited link landing the
+     workspace on nothing. */
+  const seeded = initialTemplateId && getTemplate(initialTemplateId) ? initialTemplateId : null;
+
+  const [templateId, setTemplateId] = useState(seeded ?? FIRST);
   const [query, setQuery] = useState('');
   const [title, setTitle] = useState('');
-  const [fields, setFields] = useState<Record<string, string>>(() => templateDefaults(FIRST));
+  const [fields, setFields] = useState<Record<string, string>>(() =>
+    templateDefaults(seeded ?? FIRST),
+  );
   const [content, setContent] = useState('');
   const [overrides, setOverrides] = useState<Overrides>(NO_OVERRIDES);
 
-  const [step, setStep] = useState(1);
+  // Choosing a template is step one; arriving with one already chosen means
+  // that step is behind you.
+  const [step, setStep] = useState(seeded ? 2 : 1);
   const [zoom, setZoom] = useState(1);
   const [open, setOpen] = useState<SettingsSectionId[]>(['information']);
   // Opens on the panel the first step is about, so the stepper and what is on

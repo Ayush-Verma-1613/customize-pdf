@@ -7,6 +7,16 @@ import { Panel, PanelHeading } from '../ui/Card';
 import { TemplateCard } from './TemplateCard';
 import { TemplateSearch } from './TemplateSearch';
 
+/**
+ * Resume leads the list here, ahead of the teaching drawer it used to sit
+ * behind. Derived from the shared list rather than spelled out again, so a new
+ * category cannot go missing from this panel by being added in one place only.
+ */
+const CATEGORY_ORDER: readonly (typeof TEMPLATE_CATEGORIES)[number][] = [
+  'Personal',
+  ...TEMPLATE_CATEGORIES.filter((category) => category !== 'Personal'),
+];
+
 export function TemplateSidebar({
   selectedId,
   onSelect,
@@ -36,7 +46,7 @@ export function TemplateSidebar({
       <TemplateSearch value={query} onChange={onQueryChange} />
 
       <div className="forge-scroll min-h-0 flex-1 overflow-y-auto px-4 pb-2">
-        {TEMPLATE_CATEGORIES.map((category) => {
+        {CATEGORY_ORDER.map((category) => {
           const inCategory = matches.filter((t) => t.category === category);
           if (!inCategory.length) return null;
           return (

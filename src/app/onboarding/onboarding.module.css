@@ -1,0 +1,657 @@
+/**
+ * The onboarding ground.
+ *
+ * Everything here is gradients, border-radius shapes and a few hand-written SVG
+ * paths - no images - so it weighs a couple of kilobytes and stays crisp at any
+ * size. It is scoped to a module rather than the global sheet so it cannot
+ * reach the workspace or the editor.
+ *
+ * The composition is a frame: decoration lives in the four corners and the
+ * middle ~70% is left clear for the content that sits on top of it.
+ */
+
+.page {
+  position: relative;
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  background-color: #f8f5ef;
+  color: #2c2620;
+  font-family: var(--font-sans), system-ui, sans-serif;
+
+  --ink: #2c2620;
+  --ink-soft: #6b6157;
+  --ink-faint: #948a7e;
+  --accent: #f36b21;
+  --accent-deep: #c95f18;
+  --line: #e8a36d;
+  --olive: #667054;
+  --olive-deep: #4d5740;
+}
+
+/* The ground itself: one cream base, a white bloom holding the centre open,
+   and a warm light in each corner. Every stop runs out to fully transparent,
+   so no two of them meet at a visible edge. */
+.ground {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(62% 52% at 50% 44%, rgba(255, 255, 255, 0.97) 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(38% 34% at -2% -2%, rgba(243, 170, 105, 0.2) 0%, rgba(243, 170, 105, 0) 70%),
+    radial-gradient(40% 36% at 100% 0%, rgba(241, 231, 217, 0.95) 0%, rgba(241, 231, 217, 0) 74%),
+    radial-gradient(40% 40% at -6% 96%, rgba(243, 160, 96, 0.22) 0%, rgba(243, 160, 96, 0) 70%),
+    radial-gradient(54% 52% at 104% 104%, rgba(243, 140, 74, 0.34) 0%, rgba(243, 140, 74, 0) 70%);
+}
+
+.decor {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.decor > * {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Blurred blobs ---------------------------------------------------- */
+
+.blobTopLeft {
+  top: -30%;
+  left: -24%;
+  width: 42vw;
+  height: 40vw;
+  max-width: 660px;
+  max-height: 600px;
+  border-radius: 58% 42% 46% 54% / 52% 48% 52% 48%;
+  background: radial-gradient(
+    circle at 46% 46%,
+    rgba(249, 217, 188, 0.52) 0%,
+    rgba(243, 160, 96, 0.19) 44%,
+    rgba(243, 160, 96, 0) 72%
+  );
+  filter: blur(34px);
+}
+
+.blobTopRight {
+  top: -20%;
+  right: -14%;
+  width: 44vw;
+  height: 46vw;
+  max-width: 640px;
+  max-height: 680px;
+  border-radius: 44% 56% 52% 48% / 56% 44% 56% 44%;
+  background: radial-gradient(
+    circle at 52% 48%,
+    rgba(241, 231, 217, 0.95) 0%,
+    rgba(249, 217, 188, 0.55) 46%,
+    rgba(249, 217, 188, 0) 74%
+  );
+  filter: blur(30px);
+}
+
+.blobBottomLeft {
+  bottom: -28%;
+  left: -30%;
+  width: 42vw;
+  height: 44vw;
+  max-width: 600px;
+  max-height: 620px;
+  border-radius: 52% 48% 44% 56% / 46% 54% 46% 54%;
+  background: radial-gradient(
+    circle at 54% 46%,
+    rgba(249, 205, 168, 0.5) 0%,
+    rgba(243, 150, 80, 0.17) 46%,
+    rgba(243, 150, 80, 0) 74%
+  );
+  filter: blur(36px);
+}
+
+.blobBottomRight {
+  right: -18%;
+  bottom: -26%;
+  width: 56vw;
+  height: 54vw;
+  max-width: 820px;
+  max-height: 780px;
+  border-radius: 46% 54% 56% 44% / 50% 50% 50% 50%;
+  background: radial-gradient(
+    circle at 48% 50%,
+    rgba(243, 140, 74, 0.4) 0%,
+    rgba(243, 140, 74, 0.16) 46%,
+    rgba(243, 140, 74, 0) 74%
+  );
+  filter: blur(38px);
+}
+
+/* The soft organic shapes that sit under the line work, drawn as paths so
+   they can have a wavy edge a border-radius cannot make. */
+.shapeTopRight,
+.shapeBottomRight {
+  overflow: visible;
+}
+
+.shapeTopRight {
+  top: -6%;
+  right: -4%;
+  width: 34vw;
+  max-width: 520px;
+  opacity: 0.8;
+}
+
+.shapeBottomRight {
+  right: -6%;
+  bottom: -8%;
+  width: 40vw;
+  max-width: 600px;
+  opacity: 0.75;
+}
+
+.shapeFillBeige {
+  fill: rgba(241, 231, 217, 0.9);
+}
+
+.shapeFillPeach {
+  fill: rgba(249, 205, 168, 0.62);
+}
+
+/* Contour line bundles --------------------------------------------- */
+
+/* The signature of the whole design: many very thin lines of the same family,
+   offset a little at a time. Hairlines at low opacity, so they read as texture
+   from across the room and as drawing up close. */
+.lines {
+  overflow: visible;
+}
+
+.lines path,
+.lines use {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.linesTopLeft {
+  top: -3%;
+  left: -2%;
+  width: 26vw;
+  max-width: 380px;
+  opacity: 0.62;
+}
+
+.linesRight {
+  top: 8%;
+  right: -3%;
+  width: 20vw;
+  max-width: 300px;
+  opacity: 0.58;
+}
+
+.linesBottom {
+  bottom: -2%;
+  left: 8%;
+  width: 34vw;
+  max-width: 500px;
+  opacity: 0.5;
+}
+
+.linesBottomRight {
+  right: 2%;
+  bottom: 2%;
+  width: 30vw;
+  max-width: 440px;
+  opacity: 0.6;
+}
+
+/* Botanicals -------------------------------------------------------- */
+
+/* Two greens, warm-leaning so they sit beside the orange rather than argue
+   with it. The blade carries a gradient because a flat olive at this size
+   looks like a sticker. */
+.branchTopRight {
+  top: 9%;
+  right: 0.5%;
+  width: 16vw;
+  max-width: 236px;
+  overflow: visible;
+}
+
+.sprayBottomLeft {
+  bottom: -3%;
+  left: -2%;
+  width: 19vw;
+  max-width: 280px;
+  overflow: visible;
+}
+
+.blade {
+  fill: url(#ob-leaf-fill);
+  stroke: var(--olive-deep);
+  stroke-width: 1.1;
+  stroke-opacity: 0.55;
+  stroke-linejoin: round;
+}
+
+.midrib {
+  fill: none;
+  stroke: var(--olive-deep);
+  stroke-width: 1;
+  stroke-opacity: 0.5;
+  stroke-linecap: round;
+}
+
+.stem {
+  fill: none;
+  stroke: var(--olive-deep);
+  stroke-width: 1.7;
+  stroke-opacity: 0.72;
+  stroke-linecap: round;
+}
+
+/* Dot grids --------------------------------------------------------- */
+
+/* Masked so the field dissolves instead of stopping at a hard rectangle. */
+.dots {
+  background-image: radial-gradient(circle, rgba(230, 96, 26, 0.75) 1.7px, transparent 1.7px);
+  background-size: 16px 16px;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 54%, transparent 86%);
+  mask-image: radial-gradient(ellipse at center, #000 54%, transparent 86%);
+}
+
+.dotsTopLeft {
+  top: 11%;
+  left: 3%;
+  width: 118px;
+  height: 118px;
+}
+
+.dotsBottomRight {
+  right: 4%;
+  bottom: 16%;
+  width: 106px;
+  height: 106px;
+}
+
+
+/* Header ------------------------------------------------------------ */
+
+/* The brand is dressed exactly as the workspace dresses it - same logo, same
+   serif wordmark, same hairline divider - so arriving at the workspace from
+   here does not feel like moving to a different product. */
+.header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 26px 6vw 0;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.brandLogo {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.brandName {
+  font-family: 'Lora', Georgia, 'Times New Roman', serif;
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.brandRule {
+  width: 1px;
+  height: 24px;
+  margin: 0 6px;
+  background: rgba(200, 178, 150, 0.65);
+}
+
+.brandNote {
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* Quiet on purpose. There is one orange button on this page and it is the one
+   in the middle; a second filled button up here would only argue with it. */
+.headerCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid rgba(200, 178, 150, 0.6);
+  border-radius: 999px;
+  background: rgba(255, 253, 250, 0.72);
+  backdrop-filter: blur(6px);
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.headerCta:hover {
+  border-color: rgba(232, 163, 109, 0.9);
+  background: rgba(255, 253, 250, 0.95);
+  color: var(--accent-deep);
+}
+
+.headerCta svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Content ----------------------------------------------------------- */
+
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  padding: 40px 6vw 76px;
+  text-align: center;
+}
+
+.intro {
+  max-width: 660px;
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+}
+
+.wordmarkDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f36b21, #c95f18);
+}
+
+.headline {
+  margin: 22px 0 0;
+  font-family: 'Lora', Georgia, 'Times New Roman', serif;
+  font-size: clamp(34px, 4.6vw, 58px);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+.headlineAccent {
+  background: linear-gradient(100deg, #c95f18, #f36b21 55%, #e8a36d);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.standfirst {
+  margin: 20px auto 0;
+  max-width: 560px;
+  font-size: clamp(15px, 1.35vw, 17px);
+  line-height: 1.62;
+  color: var(--ink-soft);
+}
+
+/* The four starting points. Each carries its own hue so the row reads as four
+   different kinds of document rather than one card drawn four times - kept
+   muted and confined to the chip, since the ground owns the colour here. */
+.templates {
+  display: grid;
+  width: 100%;
+  max-width: 1000px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 22px 20px 24px;
+  border: 1px solid rgba(200, 178, 150, 0.42);
+  border-radius: 18px;
+  background: rgba(255, 253, 250, 0.72);
+  backdrop-filter: blur(6px);
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(232, 163, 109, 0.75);
+  background: rgba(255, 253, 250, 0.92);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Pinned to the foot of the card with margin-top:auto, so the four sit on one
+   line however far their descriptions run. Faint until the card is pointed at:
+   its job is to say the card is a door, not to compete with the title. */
+.cardGo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  transition: color 180ms ease;
+}
+
+.cardGo svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 180ms ease;
+}
+
+.card:hover .cardGo {
+  color: var(--accent-deep);
+}
+
+.card:hover .cardGo svg {
+  transform: translateX(3px);
+}
+
+.chip {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--chip-wash);
+  color: var(--chip-hue);
+}
+
+.chip svg {
+  width: 19px;
+  height: 19px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cardBody {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 30px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f36b21, #c95f18);
+  color: #fffaf5;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 10px 26px -12px rgba(201, 95, 24, 0.7);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px -12px rgba(201, 95, 24, 0.72);
+}
+
+.cta svg {
+  width: 17px;
+  height: 17px;
+}
+
+.assurance {
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+/* Below the four-across breakpoint the cards go two-across, then one, and the
+   decoration pulls further into the corners where the content is thinnest. */
+@media (max-width: 900px) {
+  .templates {
+    max-width: 520px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .linesBottom,
+  .shapeTopRight {
+    display: none;
+  }
+  .brandRule,
+  .brandNote {
+    display: none;
+  }
+  .branchTopRight {
+    top: 7%;
+    width: 30vw;
+  }
+  .sprayBottomLeft {
+    width: 34vw;
+  }
+}
+
+@media (max-width: 560px) {
+  .header {
+    padding: 18px 22px 0;
+  }
+  .brandLogo {
+    width: 30px;
+    height: 30px;
+  }
+  .brandName {
+    font-size: 20px;
+  }
+  .headerCta {
+    padding: 9px 14px;
+    font-size: 12.5px;
+  }
+  .content {
+    gap: 36px;
+    padding: 40px 22px 56px;
+  }
+  .templates {
+    max-width: 340px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* A narrow screen is taller than the content is wide, so the corner
+     decoration has nowhere to go but under the words. The lines and the
+     foliage survive that - they read as texture behind text. A dot field does
+     not: it lands as speckle on the headline. So the dots go hard into the
+     two corners the text cannot reach, and lighten. */
+  /* There is no gutter left at this width. Squeezed into one, the field is
+     masked down to three stray dots, which reads as a rendering fault rather
+     than a pattern - so the contour lines carry the top-left corner alone. */
+  .dotsTopLeft {
+    display: none;
+  }
+  /* The header now owns the top-right corner, and below it every band of the
+     page is full-width text. There is nowhere for the branch to sit that is
+     not on top of a word, so on a phone the bottom-left spray carries the
+     botanical on its own. */
+  .branchTopRight {
+    display: none;
+  }
+  .dotsBottomRight {
+    right: 14px;
+    bottom: 14px;
+    width: 62px;
+    height: 62px;
+    opacity: 0.6;
+  }
+  .linesTopLeft,
+  .linesBottomRight {
+    width: 44vw;
+  }
+  .linesRight {
+    opacity: 0.38;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .cta,
+  .headerCta,
+  .cardGo,
+  .cardGo svg {
+    transition: none;
+  }
+  .card:hover,
+  .cta:hover,
+  .card:hover .cardGo svg {
+    transform: none;
+  }
+}
