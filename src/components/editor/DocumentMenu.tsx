@@ -69,7 +69,7 @@ export function DocumentMenu({ compact }: { compact?: boolean }) {
   const remove = async () => {
     setBusy(true);
     await deleteDocument(doc.id);
-    router.push('/');
+    router.push('/workspace');
   };
 
   return (

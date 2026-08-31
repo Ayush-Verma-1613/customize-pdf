@@ -1,14 +1,15 @@
-import { HomeClient } from '@/components/home/HomeClient';
+import type { Metadata } from 'next';
+import { Onboarding } from '@/components/onboarding/Onboarding';
 
 /**
- * The workspace route. Its only job on the server is to read the template the
- * onboarding page asked for, so the first render is already the right one.
+ * The landing page. It is the first thing anybody meets, so it stays a static
+ * prerender - no data, no search params, nothing to wait for.
  */
-export default async function HomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ template?: string }>;
-}) {
-  const { template } = await searchParams;
-  return <HomeClient initialTemplateId={template} />;
+export const metadata: Metadata = {
+  description:
+    'Paste your content, choose a layout, and Docraft sets a print-ready document you can edit anywhere and export as a PDF that prints exactly as the screen showed it.',
+};
+
+export default function LandingPage() {
+  return <Onboarding />;
 }

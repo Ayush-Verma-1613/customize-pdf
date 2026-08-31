@@ -67,7 +67,7 @@ export function EditorClient({ id }: { id: string }) {
             open it there, or import the file you exported from it.
           </p>
         </div>
-        <Button tone="primary" onClick={() => router.push('/')}>
+        <Button tone="primary" onClick={() => router.push('/workspace')}>
           Back to my documents
         </Button>
       </div>
