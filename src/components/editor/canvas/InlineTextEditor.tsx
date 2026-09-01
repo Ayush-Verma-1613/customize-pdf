@@ -5,7 +5,7 @@ import { baseStyle } from '@/lib/engine/blocks';
 import type { Frame, LaidOutPage, TextFrame } from '@/lib/engine/types';
 import { fontStack } from '@/lib/model/defaults';
 import type { Block, Run, TextOverlay } from '@/lib/model/types';
-import { htmlToRuns, runsToHtml } from '@/lib/parse/richtext';
+import { htmlToRuns, normaliseLink, runsToHtml } from '@/lib/parse/richtext';
 import { useEditor } from '@/lib/store/editorStore';
 import { useCoarsePointer } from '@/lib/utils/useMedia';
 import { TextFormatBar, type ActiveMarks } from './TextFormatBar';
@@ -95,6 +95,23 @@ function selectWordAt(host: HTMLElement, x: number, y: number): boolean {
   selection.removeAllRanges();
   selection.addRange(word);
   return true;
+}
+
+/**
+ * The element whose formatting a caret has inherited.
+ *
+ * Inside a text node that is simply its parent. Between two children - which
+ * is where the caret lands when it is parked at the end of the text - the
+ * browser names the container and an index, and the formatting that carries is
+ * the child the caret sits *after*.
+ */
+function anchorHost(node: Node | null, offset: number): HTMLElement | null {
+  if (!node) return null;
+  if (node.nodeType !== Node.ELEMENT_NODE) return node.parentElement;
+  const children = node.childNodes;
+  const child = children[Math.max(0, Math.min(offset, children.length) - 1)];
+  if (!child) return node as HTMLElement;
+  return child.nodeType === Node.ELEMENT_NODE ? (child as HTMLElement) : child.parentElement;
 }
 
 function runsOf(target: Block | TextOverlay | null): Run[] | null {
@@ -194,6 +211,8 @@ export function InlineTextEditor({ page, zoom }: Props) {
     strike: false,
   });
   const [collapsed, setCollapsed] = useState(true);
+  /** The address attached to whatever the caret is sitting in, if any. */
+  const [link, setLink] = useState<string | null>(null);
 
   /** The live selection, but only when it is genuinely inside this editor. */
   const selectionInside = useCallback(() => {
@@ -216,6 +235,24 @@ export function InlineTextEditor({ page, zoom }: Props) {
       return { bold: false, italic: false, underline: false, strike: false };
     }
   };
+
+  /**
+   * The link the selection sits inside.
+   *
+   * There is no queryCommandState for this, so it is read off the DOM, and it
+   * has to answer the way the built-in states do: bold reports itself at a
+   * caret parked past the end of a bold word, and a link parked the same way
+   * has to report itself too, or coming back to a linked word would offer to
+   * add a link it already has. `selectionInside` has already established that
+   * the caret is in this editor rather than another one on the page.
+   */
+  const readLink = useCallback((): string | null => {
+    const selection = selectionInside();
+    if (!selection) return null;
+    return anchorHost(selection.anchorNode, selection.anchorOffset)
+      ?.closest('a')
+      ?.getAttribute('href') ?? null;
+  }, [selectionInside]);
 
   /**
    * Run a formatting command over the chosen words - or, when nothing is
@@ -273,8 +310,9 @@ export function InlineTextEditor({ page, zoom }: Props) {
         ? null
         : selection.getRangeAt(0).cloneRange();
       setMarks(readMarks());
+      setLink(readLink());
     },
-    [commit, selectionInside],
+    [commit, readLink, selectionInside],
   );
 
   const COMMANDS: Record<keyof ActiveMarks, { command: string; label: string }> = {
@@ -312,6 +350,25 @@ export function InlineTextEditor({ page, zoom }: Props) {
       }
     });
 
+  /**
+   * Attach an address to the chosen words, or take one off.
+   *
+   * createLink writes a plain <a href> around the selection, which is exactly
+   * what the run parser reads back as a link mark - so the address survives the
+   * trip into the model without ever becoming text on the page.
+   */
+  const setLinkHere = (url: string | null) => {
+    const href = url === null ? null : normaliseLink(url);
+    if (url !== null && !href) return;
+    format(href ? 'Link' : 'Remove link', () => {
+      document.execCommand('styleWithCSS', false, 'false');
+      // Replacing an address means clearing the old anchor first; nesting one
+      // anchor inside another is legal in neither HTML nor this model.
+      document.execCommand('unlink', false);
+      if (href) document.execCommand('createLink', false, href);
+    });
+  };
+
   /* Keep the bar honest as the caret moves. */
   useEffect(() => {
     if (!editingId) return;
@@ -321,10 +378,11 @@ export function InlineTextEditor({ page, zoom }: Props) {
       liveRange.current = selection.isCollapsed ? null : selection.getRangeAt(0).cloneRange();
       setCollapsed(selection.isCollapsed);
       setMarks(readMarks());
+      setLink(readLink());
     };
     document.addEventListener('selectionchange', onSelectionChange);
     return () => document.removeEventListener('selectionchange', onSelectionChange);
-  }, [editingId, selectionInside]);
+  }, [editingId, readLink, selectionInside]);
 
   /* A new target starts with no remembered selection. */
   useEffect(() => {
@@ -396,6 +454,7 @@ export function InlineTextEditor({ page, zoom }: Props) {
         ? selection.getRangeAt(0).cloneRange()
         : null;
     setCollapsed(!picked);
+    setLink(readLink());
     // Re-running on every keystroke would fight the caret; key on the id alone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId]);
@@ -437,6 +496,8 @@ export function InlineTextEditor({ page, zoom }: Props) {
         onToggle={toggleMarkHere}
         onColor={setColourHere}
         onHighlight={setHighlightHere}
+        link={link}
+        onLink={setLinkHere}
         onPressStart={capturePress}
         touch={coarse}
         placement={px(frame.y) > 54 ? 'above' : 'below'}

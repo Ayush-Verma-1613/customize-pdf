@@ -44,7 +44,12 @@ function TextRun({ line, originX, originY }: { line: LineBox; originX: number; o
         const y = baseline - item.rise;
         const ruleThickness = Math.max(0.4, item.font.size * DECORATION_THICKNESS);
         return (
-          <g key={i}>
+          // A link is deliberately invisible on the page - the address is never
+          // drawn and the glyphs are left exactly as they were set. The title
+          // is how you find it again: hovering the words names the destination
+          // without printing a single extra mark.
+          <g key={i} style={item.link ? { cursor: 'pointer' } : undefined}>
+            {item.link ? <title>{item.link}</title> : null}
             {item.highlight ? (
               <rect
                 x={round(x)}

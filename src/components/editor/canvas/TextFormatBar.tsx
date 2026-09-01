@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Bold, Highlighter, Italic, Strikethrough, Type, Underline } from 'lucide-react';
+import { Bold, Highlighter, Italic, Link, Strikethrough, Type, Underline } from 'lucide-react';
 import { HIGHLIGHTS, PALETTE } from '@/lib/model/defaults';
 import { cx } from '@/lib/utils/cx';
 import { Popup } from '@/components/ui/Popup';
@@ -30,6 +30,10 @@ export interface TextFormatBarProps {
   onToggle: (mark: keyof ActiveMarks) => void;
   onColor: (colour: string) => void;
   onHighlight: (colour: string | null) => void;
+  /** The address already attached to the selection, if there is one. */
+  link: string | null;
+  /** A new address, or null to take the existing one off. */
+  onLink: (url: string | null) => void;
   /** Above the text by preference, below it when the box is near the page top. */
   placement: 'above' | 'below';
   /** Called as any control is pressed, while the selection is still live. */
@@ -52,17 +56,30 @@ const keepSelectionOnTouch = (event: React.PointerEvent) => {
   if (event.pointerType !== 'mouse') event.preventDefault();
 };
 
+/**
+ * The one control here that has to take the focus.
+ *
+ * Everything else in this bar guards the selection by refusing focus outright,
+ * which a text field cannot do and still be typed into. It is marked instead,
+ * and the guards step aside for it - safely, because the words it will act on
+ * were already snapshotted when the link button itself was pressed.
+ */
+const isLinkField = (target: EventTarget | null) =>
+  target instanceof Element && Boolean(target.closest('[data-link-field]'));
+
 export function TextFormatBar({
   marks,
   collapsed,
   onToggle,
   onColor,
   onHighlight,
+  link,
+  onLink,
   placement,
   onPressStart,
   touch = false,
 }: TextFormatBarProps) {
-  const [picker, setPicker] = useState<'color' | 'highlight' | null>(null);
+  const [picker, setPicker] = useState<'color' | 'highlight' | 'link' | null>(null);
 
   const scope = collapsed ? 'the whole of this text' : 'the selected words';
 
@@ -76,9 +93,11 @@ export function TextFormatBar({
         // Before anything else reacts, while the chosen words are still chosen.
         onPressStart?.();
         event.stopPropagation();
-        keepSelectionOnTouch(event);
+        if (!isLinkField(event.target)) keepSelectionOnTouch(event);
       }}
-      onMouseDown={keepSelection}
+      onMouseDown={(event) => {
+        if (!isLinkField(event.target)) keepSelection(event);
+      }}
     >
       <Toggle
         icon={<Bold size={15} />}
@@ -131,6 +150,17 @@ export function TextFormatBar({
         touch={touch}
         onPick={(colour) => onHighlight(colour)}
         onClear={() => onHighlight(null)}
+      />
+
+      <LinkField
+        label={link ? `Edit the link on ${scope}` : `Link ${scope}`}
+        open={picker === 'link'}
+        active={Boolean(link)}
+        current={link}
+        onOpen={() => setPicker(picker === 'link' ? null : 'link')}
+        onClose={() => setPicker(null)}
+        touch={touch}
+        onApply={onLink}
       />
 
       <span
@@ -263,5 +293,141 @@ function Swatches({
         </Popup>
       ) : null}
     </span>
+  );
+}
+
+/**
+ * Attach an address to the chosen words.
+ *
+ * The address is never written into the document text - it sits behind the
+ * words, which look exactly as they did. Opening the field seeds it with
+ * whatever is already attached, so changing a link is a correction rather than
+ * retyping it, and clearing the field takes the link off.
+ */
+function LinkField({
+  label,
+  open,
+  active,
+  current,
+  onOpen,
+  onClose,
+  touch,
+  onApply,
+}: {
+  label: string;
+  open: boolean;
+  active: boolean;
+  current: string | null;
+  onOpen: () => void;
+  onClose: () => void;
+  touch?: boolean;
+  onApply: (url: string | null) => void;
+}) {
+  return (
+    <span className="relative shrink-0">
+      <button
+        type="button"
+        title={label}
+        aria-label={label}
+        aria-pressed={active}
+        aria-expanded={open}
+        onMouseDown={keepSelection}
+        onClick={onOpen}
+        className={cx(
+          'flex items-center justify-center rounded-lg transition-colors',
+          touch ? 'h-11 w-11' : 'h-8 w-8',
+          open || active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-[#f1ede6]',
+        )}
+      >
+        <Link size={15} />
+      </button>
+
+      {open ? (
+        <Popup
+          label={label}
+          onClose={onClose}
+          className={cx(
+            'absolute right-0 z-50',
+            touch ? 'w-[268px]' : 'w-[248px]',
+            touch ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+          )}
+        >
+          {/* Mounted only while the popover is open, so the field starts from
+              the address that is attached right now without an effect having to
+              push it in afterwards. */}
+          <LinkForm current={current} onApply={onApply} onClose={onClose} />
+        </Popup>
+      ) : null}
+    </span>
+  );
+}
+
+function LinkForm({
+  current,
+  onApply,
+  onClose,
+}: {
+  current: string | null;
+  onApply: (url: string | null) => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(current ?? '');
+
+  const submit = () => {
+    const trimmed = value.trim();
+    onApply(trimmed || null);
+    onClose();
+  };
+
+  return (
+    <div data-link-field className="p-1">
+      <input
+        // The one control in this bar that takes the focus; see isLinkField.
+        autoFocus
+        type="url"
+        inputMode="url"
+        value={value}
+        placeholder="example.com"
+        aria-label="Link address"
+        spellCheck={false}
+        autoComplete="off"
+        onFocus={(event) => event.currentTarget.select()}
+        onMouseDown={(event) => event.stopPropagation()}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            submit();
+          }
+        }}
+        className="w-full rounded-lg border border-line bg-white px-2 py-1.5 text-[12px] text-ink outline-none focus:border-ink-soft"
+      />
+      <div className="mt-1 flex gap-1">
+        <button
+          type="button"
+          onMouseDown={keepSelection}
+          onClick={submit}
+          className="flex-1 rounded-lg bg-ink py-1 text-[12px] text-white transition-opacity hover:opacity-90"
+        >
+          {current ? 'Update' : 'Add link'}
+        </button>
+        {current ? (
+          <button
+            type="button"
+            onMouseDown={keepSelection}
+            onClick={() => {
+              onApply(null);
+              onClose();
+            }}
+            className="rounded-lg border border-line px-2 py-1 text-[12px] text-muted transition-colors hover:bg-[#f8f5ef]"
+          >
+            Remove
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-1 px-0.5 text-[10px] leading-snug text-faint">
+        The address stays behind the words. Nothing extra is printed.
+      </p>
+    </div>
   );
 }

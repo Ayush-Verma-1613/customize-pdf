@@ -34,6 +34,8 @@ export interface TextItem {
   highlight?: string;
   /** Baseline shift in pt, positive moves up (superscript). */
   rise: number;
+  /** Where the span points. Never drawn; the PDF turns it into an annotation. */
+  link?: string;
 }
 
 export interface LineBox {

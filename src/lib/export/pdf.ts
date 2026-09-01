@@ -1,6 +1,7 @@
 import {
   degrees,
   PDFDocument,
+  PDFString,
   popGraphicsState,
   pushGraphicsState,
   rgb,
@@ -185,8 +186,59 @@ function drawTextLines(
         const y = baseline + item.font.size * STRIKE_OFFSET;
         drawRule(page, placer, x, y, item.width, ruleThickness, item.color, opacity);
       }
+
+      if (item.link) {
+        const top = baseline - ascentPt(item.font);
+        addLinkAnnotation(
+          page,
+          placer,
+          x,
+          top,
+          item.width,
+          ascentPt(item.font) + descentPt(item.font),
+          item.link,
+        );
+      }
     }
   }
+}
+
+/**
+ * A clickable region over words that carry a link.
+ *
+ * Nothing is drawn: the address stays behind the text exactly as it does on
+ * screen, and the reader gets a region to click rather than a printed URL.
+ * Link annotations are axis-aligned, so a rotated frame contributes the
+ * bounding box of its four mapped corners.
+ */
+function addLinkAnnotation(
+  page: PDFPage,
+  placer: Placer,
+  x: number,
+  top: number,
+  width: number,
+  height: number,
+  url: string,
+) {
+  if (width <= 0 || height <= 0) return;
+  const corners = [
+    placer.point(x, top),
+    placer.point(x + width, top),
+    placer.point(x, top + height),
+    placer.point(x + width, top + height),
+  ];
+  const xs = corners.map((c) => c.x);
+  const ys = corners.map((c) => c.y);
+
+  const annotation = page.doc.context.obj({
+    Type: 'Annot',
+    Subtype: 'Link',
+    Rect: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
+    // A zero-width border, or every reader paints its own box around the words.
+    Border: [0, 0, 0],
+    A: { Type: 'Action', S: 'URI', URI: PDFString.of(url) },
+  });
+  page.node.addAnnot(page.doc.context.register(annotation));
 }
 
 function drawRule(

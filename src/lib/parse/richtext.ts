@@ -14,6 +14,26 @@ const escapeHtml = (value: string) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
+const escapeAttribute = (value: string) => escapeHtml(value).replace(/"/g, '&quot;');
+
+/**
+ * A link address the document is willing to keep.
+ *
+ * Only the schemes a reader can actually follow survive; everything else -
+ * `javascript:` above all - is dropped rather than stored, because these runs
+ * are written straight back into a contentEditable and out into a PDF, and
+ * neither should ever be handed a scheme that executes. A bare `example.com`
+ * is the common case when somebody types rather than pastes, so it is read as
+ * https rather than rejected.
+ */
+export function normaliseLink(value: string | null | undefined): string | undefined {
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) return undefined;
+  const scheme = trimmed.match(/^([a-z][a-z0-9+.-]*):/i)?.[1]?.toLowerCase();
+  if (!scheme) return `https://${trimmed.replace(/^\/+/, '')}`;
+  return ['http', 'https', 'mailto', 'tel'].includes(scheme) ? trimmed : undefined;
+}
+
 export function runsToHtml(runs: Run[]): string {
   if (!runs?.length) return '';
   return runs
@@ -39,6 +59,8 @@ export function runsToHtml(runs: Run[]): string {
       if (run.italic) html = `<em>${html}</em>`;
       if (run.bold) html = `<strong>${html}</strong>`;
       if (styles.length) html = `<span style="${styles.join(';')}">${html}</span>`;
+      // Outermost, so the anchor survives a mark being toggled off inside it.
+      if (run.link) html = `<a href="${escapeAttribute(run.link)}">${html}</a>`;
       return html;
     })
     .join('');
@@ -53,6 +75,7 @@ interface Marks {
   highlight?: string;
   script?: 'super' | 'sub';
   letterSpacing?: number;
+  link?: string;
 }
 
 const TAG_MARKS: Record<string, Marks> = {
@@ -103,6 +126,14 @@ function marksFromElement(element: HTMLElement): Marks {
   if (decoration.includes('underline')) marks.underline = true;
   else if (decoration.includes('none')) marks.underline = false;
   if (decoration.includes('line-through')) marks.strike = true;
+
+  // The anchor the browser wrote for execCommand('createLink'), or one that
+  // came in with a paste. Nesting is legal in neither HTML nor this model, so
+  // the innermost wins - which is the one the walk reaches last.
+  if (element.tagName === 'A') {
+    const href = normaliseLink(element.getAttribute('href'));
+    if (href) marks.link = href;
+  }
 
   // <font color> is what execCommand('foreColor') emits when the browser is not
   // in CSS mode, and what a paste from an older editor arrives as. Without this
@@ -176,6 +207,7 @@ const cleanMarks = (marks: Marks): Partial<Run> => {
   if (marks.highlight) out.highlight = marks.highlight;
   if (marks.script) out.script = marks.script;
   if (marks.letterSpacing) out.letterSpacing = marks.letterSpacing;
+  if (marks.link) out.link = marks.link;
   return out;
 };
 
@@ -191,7 +223,8 @@ const sameStyle = (a: Run, b: Run) =>
   a.script === b.script &&
   a.letterSpacing === b.letterSpacing &&
   a.family === b.family &&
-  a.size === b.size;
+  a.size === b.size &&
+  a.link === b.link;
 
 export const stripTags = (html: string) =>
   html

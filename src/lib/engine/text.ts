@@ -41,6 +41,7 @@ interface Token {
   underline: boolean;
   strike: boolean;
   highlight?: string;
+  link?: string;
   rise: number;
   width: number;
   styleKey: string;
@@ -56,7 +57,7 @@ export function tokenize(runs: Run[], base: BaseTextStyle): Token[] {
     const color = run.color ?? base.color;
     const underline = run.underline ?? base.underline;
     const rise = riseOf(run, base);
-    const styleKey = `${fontKey(font)}|${color}|${underline ? 1 : 0}|${run.strike ? 1 : 0}|${run.highlight ?? ''}|${rise}`;
+    const styleKey = `${fontKey(font)}|${color}|${underline ? 1 : 0}|${run.strike ? 1 : 0}|${run.highlight ?? ''}|${rise}|${run.link ?? ''}`;
 
     for (const chunk of run.text.split('\n')) {
       for (const piece of chunk.split(SPLIT)) {
@@ -70,6 +71,7 @@ export function tokenize(runs: Run[], base: BaseTextStyle): Token[] {
           underline,
           strike: run.strike ?? false,
           highlight: run.highlight,
+          link: run.link,
           rise,
           width: measurer.width(piece, font),
           styleKey,
@@ -281,6 +283,7 @@ function finaliseLine(tokens: Token[], o: FinaliseOpts): LineBox {
       underline: start.underline || undefined,
       strike: start.strike || undefined,
       highlight: start.highlight,
+      link: start.link,
       rise: start.rise,
     });
     i = j;

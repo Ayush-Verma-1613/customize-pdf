@@ -66,6 +66,12 @@ export interface Run {
   size?: number;
   letterSpacing?: number;
   script?: 'super' | 'sub';
+  /**
+   * Where the words point. The address itself is never drawn - it sits behind
+   * the text it was attached to and travels with it, into the PDF as a real
+   * clickable region.
+   */
+  link?: string;
 }
 
 /* ------------------------------------------------------------------ *
