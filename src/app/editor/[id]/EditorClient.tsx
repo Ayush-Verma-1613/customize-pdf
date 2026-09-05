@@ -15,13 +15,19 @@ type Status = 'loading' | 'ready' | 'missing';
  * New documents are created and saved on the home screen before navigating
  * here, so this route only ever reads.
  */
-export function EditorClient({ id }: { id: string }) {
+export function EditorClient() {
   const router = useRouter();
   const [status, setStatus] = useState<Status>('loading');
   const [recovery, setRecovery] = useState<{ savedAt: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
+    // The page is one prerendered shell shared by every document, so the
+    // address bar is the only place the id exists. Read at effect time rather
+    // than held in state: nothing renders from it, and the pathname cannot
+    // change without this route unmounting.
+    const id = decodeURIComponent(window.location.pathname.split('/').pop() ?? '');
 
     void (async () => {
       const existing = await loadDocument(id);
@@ -46,7 +52,7 @@ export function EditorClient({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, []);
 
   if (status === 'loading') {
     return (

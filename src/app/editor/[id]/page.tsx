@@ -1,10 +1,14 @@
 import { EditorClient } from './EditorClient';
 
 /**
- * The editor route. Everything runs in the browser, so the server component's
- * only job is to hand the document id to the client.
+ * One prerendered shell serves every document. Ids are created in the browser,
+ * so there is no set of them to build pages from; hosting rewrites /editor/*
+ * onto this file and the client reads the id back out of the address bar.
  */
-export default async function EditorPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <EditorClient id={id} />;
+export function generateStaticParams() {
+  return [{ id: 'doc' }];
+}
+
+export default function EditorPage() {
+  return <EditorClient />;
 }

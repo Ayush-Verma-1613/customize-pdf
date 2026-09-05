@@ -155,10 +155,54 @@ src/
     home/                 Content in, template chosen, into the editor
     editor/canvas/        The SVG page, selection, drag, inline text editing
     editor/panels/        Elements, content, templates, pages, document, help
+    site/                 Header, footer and ad loader for the reading pages
     ui/                   Buttons, fields, colour picker, bottom sheet
+  content/posts/          The guides, one file per article
 scripts/                  Headless engine checks — run with npx tsx
 public/fonts/             The five shipped faces, 20 files
 ```
+
+## The site around the app
+
+The editor is one part of the deployment. Around it sit the pages a reader
+arrives on: `/blog` and its articles, plus `/about`, `/privacy` and `/contact`.
+They share the app's palette but not its chrome — `components/site/SiteChrome`
+gives them a header and footer of their own, because a document's toolbar is
+not navigation.
+
+### Adding a guide
+
+One file per article in `src/content/posts/`, exporting a `Post`. Copy an
+existing one; the fields are in `src/lib/blog/types.ts`. Then add it to the
+`ALL` array in `src/lib/blog/index.ts` — the list is explicit rather than
+globbed, so a post that fails to typecheck fails the build instead of silently
+vanishing from the index.
+
+The body is Markdown, read by `src/lib/blog/markdown.tsx`. It covers what the
+articles use and nothing more: `##` and `###` headings, paragraphs, `-` and
+`1.` lists, `>` for a pulled-out aside, pipe tables, and inline `**bold**`,
+`*italic*`, `` `code` `` and `[links](/path)`. It builds React nodes directly,
+so nothing is ever handed to `dangerouslySetInnerHTML`.
+
+Everything else follows on its own — the sitemap, the index page, the topic
+tint, and the three "read next" cards at the foot of every article.
+
+### Search and advertising
+
+`app/sitemap.ts` and `app/robots.ts` generate `sitemap.xml` and `robots.txt` at
+build time. Both are marked `force-static`, which a static export requires. The
+editor route is excluded from crawling: it is one shell standing in for every
+document, and the ids in those paths belong to whoever made them.
+
+Set `NEXT_PUBLIC_SITE_URL` at build time to the real origin. It is what the
+canonical tags, the Open Graph urls and the sitemap are built from, and a
+static export has no request to infer it from.
+
+Advertising is off until `NEXT_PUBLIC_ADSENSE_CLIENT` is set to a `ca-pub-…`
+publisher id. Without it `components/site/AdSense` renders nothing, so the site
+carries no advertising script while it is being built out or reviewed. The
+matching publisher line goes in `public/ads.txt`, which ships as comments until
+then.
 
 ## Storage
 

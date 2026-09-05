@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, FileText, ListChecks, ShieldCheck } from 'lucide-react';
 import { cx } from '@/lib/utils/cx';
@@ -24,6 +25,13 @@ import { cx } from '@/lib/utils/cx';
  * amber for the things you can make, indigo for the way you drive it, green
  * for the state of your work.
  */
+
+const SITE_LINKS = [
+  { href: '/blog', label: 'Guides' },
+  { href: '/about', label: 'About' },
+  { href: '/contact', label: 'Contact' },
+  { href: '/privacy', label: 'Privacy' },
+];
 
 const HINT: Record<number, string> = {
   1: 'Pick the kind of document you are making.',
@@ -139,6 +147,20 @@ export function SiteFooter({ step, templateName }: { step: number; templateName:
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-forge-line pt-3 text-[11.5px] text-forge-muted sm:mt-5 sm:pt-3.5">
+          {/* The rest of the site. The workspace is where most visits land, so
+              the guides and the policy pages have to be reachable from it. */}
+          {SITE_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="transition-colors hover:text-forge-ink"
+            >
+              {link.label}
+            </Link>
+          ))}
+          <span aria-hidden className="text-forge-line">
+            ·
+          </span>
           <span>© {new Date().getFullYear()} Docraft</span>
           <span aria-hidden className="text-forge-line">
             ·

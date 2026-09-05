@@ -49,6 +49,14 @@ const STARTING_POINTS = [
   },
 ];
 
+/** The rest of the site. Every page has to be reachable from the front door. */
+const SITE_LINKS = [
+  { href: '/blog', label: 'Guides' },
+  { href: '/about', label: 'About' },
+  { href: '/contact', label: 'Contact' },
+  { href: '/privacy', label: 'Privacy' },
+];
+
 export function Onboarding() {
   return (
     <div className={styles.page}>
@@ -102,7 +110,7 @@ export function Onboarding() {
           {STARTING_POINTS.map(({ id, icon: Icon, title, body, hue, wash }) => (
             <Link
               key={id}
-              href={`/workspace?template=${id}`}
+              href={`/workspace/${id}`}
               className={styles.card}
               style={{ '--chip-hue': hue, '--chip-wash': wash } as React.CSSProperties}
             >
@@ -129,6 +137,19 @@ export function Onboarding() {
           </p>
         </div>
       </main>
+
+      <footer className={styles.siteFooter}>
+        <ul className={styles.siteLinks}>
+          {SITE_LINKS.map((link) => (
+            <li key={link.href}>
+              <Link className={styles.siteLink} href={link.href}>
+                {link.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <p className={styles.siteCopyright}>© {new Date().getFullYear()} Docraft</p>
+      </footer>
     </div>
   );
 }

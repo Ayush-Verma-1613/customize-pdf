@@ -655,3 +655,44 @@
     transform: none;
   }
 }
+
+/* The landing page's own footer. The reading pages carry a full four-column
+   footer; this one stays a single quiet row, because the page's whole job is
+   to send somebody into the workspace and a second block of links would
+   compete with the one action above it. */
+.siteFooter {
+  position: relative;
+  z-index: 1;
+  margin-top: 56px;
+  padding: 22px 24px 30px;
+  border-top: 1px solid rgba(40, 30, 20, 0.08);
+}
+
+.siteLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.siteLink {
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.siteLink:hover {
+  color: var(--ink);
+}
+
+.siteCopyright {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-faint);
+}

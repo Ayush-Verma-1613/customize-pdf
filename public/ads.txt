@@ -1,0 +1,9 @@
+# Authorised digital sellers for this domain.
+#
+# Google AdSense issues one line for your publisher account, in the form:
+#   google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
+#
+# Copy that exact line from AdSense (Account > Settings > "Get your ads.txt
+# snippet") and paste it below, replacing the placeholder digits with your own
+# publisher ID. Until then this file is comments only, which is valid and
+# claims nothing.
